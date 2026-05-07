@@ -40,7 +40,7 @@ pub fn key_to_action(key: KeyEvent, in_composer: bool, in_login: bool) -> Option
             Some(Action::SelectPrev)
         }
         (KeyModifiers::NONE, KeyCode::Enter) => Some(Action::OpenThread),
-        (KeyModifiers::NONE, KeyCode::Esc) => Some(Action::GoBack),
+        (KeyModifiers::NONE, KeyCode::Char(',')) => Some(Action::GoBack),
         (KeyModifiers::NONE, KeyCode::Char('n')) => Some(Action::OpenComposer {
             reply_to: None,
             reply_to_author: None,
@@ -60,7 +60,6 @@ pub fn key_to_action(key: KeyEvent, in_composer: bool, in_login: bool) -> Option
         (KeyModifiers::SHIFT, KeyCode::Char('G')) => Some(Action::ScrollToBottom),
         (KeyModifiers::NONE, KeyCode::Char('1')) => Some(Action::SwitchTab(0)),
         (KeyModifiers::NONE, KeyCode::Char('2')) => Some(Action::SwitchTab(1)),
-        (KeyModifiers::NONE, KeyCode::Char('a')) => Some(Action::ShowAbout),
         _ => None,
     }
 }
