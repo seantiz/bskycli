@@ -201,7 +201,7 @@ async fn wait_for_callback(expected_state: &str) -> Result<String> {
 
                     if let (Some(state), Some(code)) = (state, code) {
                         if state == expected_state {
-                            let response = "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n<html><body><h1>Authorization successful!</h1><p>You can close this window and return to Skyscraper.</p></body></html>";
+                            let response = "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n<html><body><h1>Auth successful!</h1><p>You can close this window.</p></body></html>";
                             let _ = stream.write_all(response.as_bytes()).await;
                             if let Some(tx) = tx.lock().await.take() {
                                 let _ = tx.send(code);

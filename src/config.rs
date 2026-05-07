@@ -10,8 +10,6 @@ pub struct AppConfig {
     pub default_handle: Option<String>,
     #[serde(default)]
     pub prefer_app_password: bool,
-    #[serde(default)]
-    pub promo_dismissed: bool,
 }
 
 fn default_service() -> String {
@@ -24,7 +22,6 @@ impl Default for AppConfig {
             service: default_service(),
             default_handle: None,
             prefer_app_password: false,
-            promo_dismissed: false,
         }
     }
 }
@@ -58,5 +55,5 @@ fn config_path() -> PathBuf {
 
 fn dirs_path() -> PathBuf {
     let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
-    PathBuf::from(home).join(".config").join("skyscraper")
+    PathBuf::from(home).join(".config").join("bskycli")
 }

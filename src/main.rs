@@ -16,7 +16,7 @@ use anyhow::Result;
 use clap::Parser;
 
 #[derive(Parser, Debug)]
-#[command(name = "skyscraper", version, about = "A TUI client for Bluesky")]
+#[command(name = "bskycli", version, about = "A TUI client for Bluesky")]
 struct Cli {
     /// Bluesky handle (e.g. alice.bsky.social)
     #[arg(short = 'u', long)]

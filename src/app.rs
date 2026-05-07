@@ -11,7 +11,6 @@ use crate::action::Action;
 use crate::api::auth;
 use crate::api::client::{BlueskyClient, ReplyRef};
 use crate::api::session;
-use crate::config::AppConfig;
 use crate::event::{self, EventHandler};
 use crate::models::feed::FeedState;
 use crate::models::profile::ProfileViewModel;
@@ -27,7 +26,6 @@ pub enum Screen {
     Timeline,
     Thread,
     Profile,
-    About,
 }
 
 pub struct App {
@@ -55,19 +53,16 @@ pub struct App {
     login_form: LoginForm,
     composer: Composer,
     show_composer: bool,
-    show_promo: bool,
 }
 
 impl App {
-    pub fn new(handle: Option<String>, prefer_app_password: bool, client: Arc<BlueskyClient>) -> Self {
+    pub fn new(
+        handle: Option<String>,
+        prefer_app_password: bool,
+        client: Arc<BlueskyClient>,
+    ) -> Self {
         let (action_tx, action_rx) = mpsc::unbounded_channel();
-        let default_handle = handle
-            .clone()
-            .or_else(|| session::get_last_handle());
-
-        let show_promo = !AppConfig::load()
-            .map(|c| c.promo_dismissed)
-            .unwrap_or(false);
+        let default_handle = handle.clone().or_else(|| session::get_last_handle());
 
         App {
             should_quit: false,
@@ -88,7 +83,6 @@ impl App {
             login_form: LoginForm::new(default_handle),
             composer: Composer::new(),
             show_composer: false,
-            show_promo,
         }
     }
 
@@ -130,15 +124,6 @@ impl App {
     fn handle_event(&mut self, event: Event) {
         match event {
             Event::Key(key) => {
-                // Promo popover intercepts all keys
-                if self.show_promo {
-                    if key.code == KeyCode::Enter {
-                        let _ = open::that("https://apps.apple.com/app/apple-store/id6754198379?pt=118981141&ct=mac_tui_application&mt=8");
-                    }
-                    self.dismiss_promo();
-                    return;
-                }
-
                 // Let modals handle keys first
                 if self.show_composer {
                     if let Some(action) = self.composer.handle_key_event(key) {
@@ -154,12 +139,6 @@ impl App {
                     return;
                 }
 
-                // About screen: Enter opens App Store URL
-                if self.screen == Screen::About && key.code == KeyCode::Enter {
-                    let _ = open::that("https://apps.apple.com/app/apple-store/id6754198379?pt=118981141&ct=mac_tui_application&mt=8");
-                    return;
-                }
-
                 // Global key handling
                 if let Some(action) =
                     event::key_to_action(key, self.show_composer, self.screen == Screen::Login)
@@ -168,11 +147,10 @@ impl App {
                     let action = if matches!(key.code, KeyCode::Char('r'))
                         && key.modifiers == KeyModifiers::NONE
                     {
-                        self.make_reply_action()
-                            .unwrap_or(Action::OpenComposer {
-                                reply_to: None,
-                                reply_to_author: None,
-                            })
+                        self.make_reply_action().unwrap_or(Action::OpenComposer {
+                            reply_to: None,
+                            reply_to_author: None,
+                        })
                     } else {
                         action
                     };
@@ -201,14 +179,6 @@ impl App {
             }),
             reply_to_author: Some(p.author_display_name.clone()),
         })
-    }
-
-    fn dismiss_promo(&mut self) {
-        self.show_promo = false;
-        if let Ok(mut config) = AppConfig::load() {
-            config.promo_dismissed = true;
-            let _ = config.save();
-        }
     }
 
     fn dispatch(&self, action: Action) {
@@ -360,12 +330,8 @@ impl App {
 
             Action::OpenThread => {
                 let uri = match self.screen {
-                    Screen::Timeline => {
-                        self.timeline.selected_post().map(|p| p.uri.clone())
-                    }
-                    Screen::Profile => {
-                        self.profile_feed.selected_post().map(|p| p.uri.clone())
-                    }
+                    Screen::Timeline => self.timeline.selected_post().map(|p| p.uri.clone()),
+                    Screen::Profile => self.profile_feed.selected_post().map(|p| p.uri.clone()),
                     _ => None,
                 };
 
@@ -377,7 +343,7 @@ impl App {
                     self.spawn_load(async move {
                         match client.get_thread(&uri).await {
                             Ok(thread) => {
-                                let _ = tx.send(Action::ThreadLoaded(thread));
+                                let _ = tx.send(Action::ThreadLoaded(Box::new(thread)));
                             }
                             Err(e) => {
                                 let _ = tx.send(Action::Error(e.to_string()));
@@ -388,7 +354,7 @@ impl App {
             }
 
             Action::ThreadLoaded(thread) => {
-                self.thread = thread;
+                self.thread = *thread;
             }
 
             Action::GoBack => {
@@ -467,8 +433,7 @@ impl App {
                             tokio::spawn(async move {
                                 match client.unlike(&like_uri).await {
                                     Ok(_) => {
-                                        let _ =
-                                            tx.send(Action::UnlikeSuccess { post_uri });
+                                        let _ = tx.send(Action::UnlikeSuccess { post_uri });
                                     }
                                     Err(e) => {
                                         let _ = tx.send(Action::Error(e.to_string()));
@@ -529,9 +494,7 @@ impl App {
                             tokio::spawn(async move {
                                 match client.unrepost(&repost_uri).await {
                                     Ok(_) => {
-                                        let _ = tx.send(Action::UnrepostSuccess {
-                                            post_uri,
-                                        });
+                                        let _ = tx.send(Action::UnrepostSuccess { post_uri });
                                     }
                                     Err(e) => {
                                         let _ = tx.send(Action::Error(e.to_string()));
@@ -580,12 +543,8 @@ impl App {
 
             Action::ViewAuthorProfile => {
                 let did = match self.screen {
-                    Screen::Timeline => {
-                        self.timeline.selected_post().map(|p| p.author_did.clone())
-                    }
-                    Screen::Thread => {
-                        self.thread.as_ref().map(|t| t.focal.author_did.clone())
-                    }
+                    Screen::Timeline => self.timeline.selected_post().map(|p| p.author_did.clone()),
+                    Screen::Thread => self.thread.as_ref().map(|t| t.focal.author_did.clone()),
                     _ => None,
                 };
                 if let Some(did) = did {
@@ -626,11 +585,6 @@ impl App {
             } => {
                 self.profile = Some(profile);
                 self.profile_feed.replace_posts(posts, cursor);
-            }
-
-            Action::ShowAbout => {
-                self.screen_stack.push(self.screen.clone());
-                self.screen = Screen::About;
             }
 
             Action::Error(msg) => {
@@ -708,9 +662,6 @@ impl App {
                     &self.profile_feed,
                 );
             }
-            Screen::About => {
-                crate::ui::about::draw_about(frame, chunks[1]);
-            }
         }
 
         // Status bar
@@ -726,43 +677,5 @@ impl App {
         if self.show_composer {
             self.composer.draw(frame, area);
         }
-
-        // Promo popover overlay
-        if self.show_promo {
-            self.draw_promo_popover(frame, area);
-        }
-    }
-
-    fn draw_promo_popover(&self, frame: &mut ratatui::Frame, area: Rect) {
-        use ratatui::widgets::{Block, Borders, Clear, Padding, Paragraph, Wrap};
-
-        let popup_width = 62.min(area.width.saturating_sub(4));
-        let popup_height = 9.min(area.height.saturating_sub(2));
-        let x = area.x + (area.width.saturating_sub(popup_width)) / 2;
-        let y = area.y + (area.height.saturating_sub(popup_height)) / 2;
-        let popup_area = Rect::new(x, y, popup_width, popup_height);
-
-        frame.render_widget(Clear, popup_area);
-
-        let text = "\
-Skyscraper is also available on iOS!\n\
-\n\
-Download the companion app for a full\n\
-Bluesky experience on your iPhone or iPad.\n\
-\n\
-Enter: open App Store  |  any key: dismiss";
-
-        let popup = Paragraph::new(text)
-            .style(Style::default().fg(Color::White))
-            .wrap(Wrap { trim: false })
-            .block(
-                Block::default()
-                    .borders(Borders::ALL)
-                    .border_style(Style::default().fg(Color::Cyan))
-                    .title(" Welcome ")
-                    .title_style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))
-                    .padding(Padding::horizontal(1)),
-            );
-        frame.render_widget(popup, popup_area);
     }
 }
