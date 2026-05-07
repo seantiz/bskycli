@@ -1,13 +1,12 @@
 [package]
-name = "skyscraper"
+name = "bskycli"
 version = "0.1.0"
-edition = "2021"
-description = "A TUI client for Bluesky"
+edition = "2024"
+description = "Bluesky from the terminal"
 license = "MIT"
-repository = "https://github.com/CameronBanga/cli-2026-skyscraper_command_line"
 
 [[bin]]
-name = "skyscraper"
+name = "bsky"
 path = "src/main.rs"
 
 [dependencies]
@@ -49,6 +48,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 uuid = { version = "1", features = ["v4"] }
 open = "5"
 url = "2"
+ipld-core = "0.4.3"
 
 [profile.release]
 lto = true
