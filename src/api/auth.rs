@@ -2,7 +2,7 @@ use anyhow::Result;
 use tracing::{info, warn};
 
 use super::client::BlueskyClient;
-use super::session::{self, SessionData};
+use super::session::{self};
 
 pub enum AuthResult {
     Success(String),
@@ -14,7 +14,7 @@ pub async fn try_restore_session(client: &BlueskyClient) -> AuthResult {
         Ok(Some(session_data)) => {
             info!("Found saved session for {}", session_data.handle);
             match client
-                .login_app_password(&session_data.handle, &session_data.access_jwt)
+                .restore_session(&session_data.access_jwt, &session_data.refresh_jwt, &session_data.did, &session_data.handle)
                 .await
             {
                 Ok(_) => {
@@ -43,21 +43,8 @@ pub async fn login_with_app_password(
     identifier: &str,
     password: &str,
 ) -> Result<String> {
-    client.login_app_password(identifier, password).await?;
-
-    let did = client.did().await.unwrap_or_default();
-    let handle = identifier.to_string();
-
-    let session_data = SessionData {
-        did,
-        handle: handle.clone(),
-        access_jwt: password.to_string(),
-        refresh_jwt: String::new(),
-        pds_endpoint: None,
-    };
-    session::save_session(&session_data)?;
-
-    Ok(handle)
+    let session_data = client.login_app_password(identifier, password).await?;
+    Ok(session_data.handle)
 }
 
 pub fn logout() -> Result<()> {

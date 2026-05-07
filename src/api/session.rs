@@ -13,7 +13,7 @@ pub struct SessionData {
 
 fn session_dir() -> PathBuf {
     let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
-    PathBuf::from(home).join(".config").join("skyscraper")
+    PathBuf::from(home).join(".config").join("bskycli")
 }
 
 fn session_path() -> PathBuf {

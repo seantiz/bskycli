@@ -1,7 +1,12 @@
 use anyhow::Result;
+use atrium_api::types::{Object};
+use atrium_api::com::atproto::server::create_session::OutputData;
 use bsky_sdk::BskyAgent;
+use ipld_core::ipld::Ipld;
 use atrium_api::types::string::Datetime;
 
+use crate::api::session;
+use crate::api::session::SessionData;
 use crate::models::post::PostViewModel;
 use crate::models::profile::ProfileViewModel;
 use crate::models::thread::ThreadViewModel;
@@ -16,8 +21,43 @@ impl BlueskyClient {
         Ok(BlueskyClient { agent })
     }
 
-    pub async fn login_app_password(&self, identifier: &str, password: &str) -> Result<()> {
-        self.agent.login(identifier, password).await?;
+    pub async fn login_app_password(&self, identifier: &str, password: &str) -> Result<SessionData> {
+        let session = self.agent.login(identifier, password).await?;
+        let handle = session.handle.to_string();
+        let did = session.did.to_string();
+        let access_jwt = session.access_jwt.clone();
+        let refresh_jwt = session.refresh_jwt.clone();
+
+        let session_data = SessionData {
+            did,
+            handle: handle.clone(),
+            access_jwt,
+            refresh_jwt,
+            pds_endpoint: None,
+        };
+        session::save_session(&session_data)?;
+
+        Ok(session_data)
+    }
+
+    pub async fn restore_session(&self, access_jwt: &str, refresh_jwt: &str, did: &str, handle: &str) -> Result<()> {
+        let session_data = OutputData {
+            access_jwt: access_jwt.to_string(),
+            refresh_jwt: refresh_jwt.to_string(),
+            did: did.parse().map_err(|_| anyhow::anyhow!("invalid did"))?,
+            handle: handle.parse().map_err(|_| anyhow::anyhow!("invalid handle"))?,
+            email: None,
+            email_confirmed: None,
+            email_auth_factor: None,
+            active: Some(true),
+            did_doc: None,
+            status: None,
+        };
+        let session = Object {
+            data: session_data,
+            extra_data: Ipld::Null,
+        };
+        self.agent.resume_session(session).await?;
         Ok(())
     }
 
