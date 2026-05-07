@@ -39,7 +39,7 @@ pub enum Action {
     },
 
     // Thread
-    ThreadLoaded(Option<ThreadViewModel>),
+    ThreadLoaded(Box<Option<ThreadViewModel>>),
 
     // Composer
     OpenComposer {
@@ -79,8 +79,6 @@ pub enum Action {
         cursor: Option<String>,
     },
 
-    // About
-    ShowAbout,
 
     // Errors
     Error(String),
