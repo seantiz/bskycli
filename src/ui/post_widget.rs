@@ -175,7 +175,7 @@ pub fn draw_post(frame: &mut Frame, area: Rect, post: &PostViewModel, selected: 
             Span::styled(format!("{}", post.repost_count), repost_style),
             Span::raw("  "),
             Span::styled(
-                format!("💬 {}", post.reply_count),
+                format!("Replies {}", post.reply_count),
                 Style::default().fg(Color::DarkGray),
             ),
         ]);
