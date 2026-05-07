@@ -98,7 +98,7 @@ impl Component for LoginForm {
         frame.render_widget(Clear, modal_area);
 
         let block = Block::default()
-            .title(" Skyscraper - Login ")
+            .title(" Bluesky - Login ")
             .borders(Borders::ALL)
             .border_style(Style::default().fg(Color::Cyan));
 

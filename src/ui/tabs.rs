@@ -7,7 +7,7 @@ pub fn draw_tabs(frame: &mut Frame, area: Rect, active: usize) {
         .block(
             Block::default()
                 .borders(Borders::BOTTOM)
-                .title(" Skyscraper "),
+                .title(" Bluesky "),
         )
         .select(active)
         .style(Style::default().fg(Color::DarkGray))
