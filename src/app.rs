@@ -46,7 +46,6 @@ pub struct App {
     action_tx: mpsc::UnboundedSender<Action>,
     action_rx: mpsc::UnboundedReceiver<Action>,
     handle: Option<String>,
-    prefer_app_password: bool,
 
     // State
     timeline: FeedState,
@@ -70,7 +69,7 @@ pub struct App {
 impl App {
     pub fn new(
         handle: Option<String>,
-        prefer_app_password: bool,
+        _prefer_app_password: bool,
         client: Arc<BlueskyClient>,
     ) -> Self {
         let (action_tx, action_rx) = mpsc::unbounded_channel();
@@ -85,7 +84,6 @@ impl App {
             action_tx,
             action_rx,
             handle: handle.clone(),
-            prefer_app_password,
             timeline: FeedState::new(),
             thread: None,
             profile: None,
