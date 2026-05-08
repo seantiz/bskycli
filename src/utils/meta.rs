@@ -1,13 +1,9 @@
-use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::Arc;
-use parking_lot::RwLock;
 use sha2::{Sha256, Digest};
 
 #[derive(Clone)]
 pub struct ImageLibrary {
     cache_dir: PathBuf,
-    memory: Arc<RwLock<HashMap<String, Vec<u8>>>>,
 }
 
 impl ImageLibrary {
@@ -18,7 +14,6 @@ impl ImageLibrary {
         }
         Self {
             cache_dir,
-            memory: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 
@@ -55,14 +50,5 @@ impl ImageLibrary {
         Ok(cache_path)
     }
 
-    pub fn clear_library(&self) -> std::io::Result<()> {
-        if self.cache_dir.exists() {
-            for entry in std::fs::read_dir(&self.cache_dir)? {
-                if let Ok(entry) = entry {
-                    std::fs::remove_file(entry.path()).ok();
-                }
-            }
-        }
-        Ok(())
-    }
+    
 }
