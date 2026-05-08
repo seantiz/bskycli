@@ -83,7 +83,6 @@ impl Component for LoginForm {
         None
     }
 
-    fn update(&mut self, _action: &Action) {}
 
     fn draw(&self, frame: &mut Frame, area: Rect) {
         let modal_width = 50.min(area.width.saturating_sub(4));

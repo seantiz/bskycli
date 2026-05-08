@@ -101,7 +101,6 @@ impl Component for Composer {
         None
     }
 
-    fn update(&mut self, _action: &Action) {}
 
     fn draw(&self, frame: &mut Frame, area: Rect) {
         let modal_width = 60.min(area.width.saturating_sub(4));
