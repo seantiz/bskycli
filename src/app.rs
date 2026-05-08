@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use anyhow::Result;
@@ -16,9 +17,17 @@ use crate::models::feed::FeedState;
 use crate::models::profile::ProfileViewModel;
 use crate::models::thread::ThreadViewModel;
 use crate::tui::Tui;
+use crate::ui::Component;
 use crate::ui::composer::Composer;
 use crate::ui::login::LoginForm;
-use crate::ui::Component;
+use crate::utils::meta::ImageLibrary;
+use ratatui_image::protocol::StatefulProtocol;
+
+pub struct ImageState {
+    pub protocol: StatefulProtocol,
+    pub cols: u16,
+    pub rows: u16,
+}
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Screen {
@@ -53,6 +62,9 @@ pub struct App {
     login_form: LoginForm,
     composer: Composer,
     show_composer: bool,
+
+    image_library: ImageLibrary,
+    image_protocols: HashMap<String, ImageState>,
 }
 
 impl App {
@@ -83,6 +95,8 @@ impl App {
             login_form: LoginForm::new(default_handle),
             composer: Composer::new(),
             show_composer: false,
+            image_library: ImageLibrary::new(),
+            image_protocols: std::collections::HashMap::new(),
         }
     }
 
@@ -196,6 +210,69 @@ impl App {
         }
     }
 
+    fn load_selected_post_images(&mut self) {
+        let post = match self.screen {
+            Screen::Timeline => self.timeline.selected_post(),
+            Screen::Profile => self.profile_feed.selected_post(),
+            Screen::Thread => self.thread.as_ref().map(|t| &t.focal),
+            _ => None,
+        };
+
+        let post = match post {
+            Some(p) => p,
+            None => return,
+        };
+
+        let embed = match &post.embed_summary {
+            Some(e) => match &e.kind {
+                crate::models::post::EmbedKind::Images(imgs) => imgs,
+                _ => return,
+            },
+            None => return,
+        };
+
+        if embed.is_empty() {
+            return;
+        }
+
+        if self.image_protocols.contains_key(&post.uri) {
+            return;
+        }
+
+        let url = embed[0].size.clone();
+        let post_uri = post.uri.clone();
+        let library = self.image_library.clone();
+        let tx = self.action_tx.clone();
+
+        self.spawn_load(async move {
+            match library.retrieve_or_download(&url).await {
+                Ok(path) => {
+                    if let Ok(data) = std::fs::read(&path) {
+                        if let Ok(dyn_img) = image::load_from_memory(&data) {
+                            let mut picker = ratatui_image::picker::Picker::from_query_stdio();
+                            picker.as_mut()
+                                .expect("REASON")
+                                .set_protocol_type(ratatui_image::picker::ProtocolType::Kitty);
+                            let font_size = picker.as_mut().expect("REASON").font_size();
+                            let cols = (dyn_img.width() / font_size.0 as u32).max(1) as u16;
+                            let rows = (dyn_img.height() / font_size.1 as u32).max(1) as u16;
+                            let protocol = picker.as_mut().expect("REASON").new_resize_protocol(dyn_img);
+                            let _ = tx.send(Action::ImageLoaded {
+                                post_uri,
+                                protocol,
+                                cols,
+                                rows,
+                            });
+                        }
+                    }
+                }
+                Err(e) => {
+                    error!("Failed to load image: {}", e);
+                }
+            }
+        });
+    }
+
     async fn update(&mut self, action: Action) {
         match action {
             Action::Quit => {
@@ -292,17 +369,20 @@ impl App {
                 } else {
                     self.timeline.replace_posts(posts, cursor);
                 }
+                self.load_selected_post_images();
             }
 
             Action::SelectNext => match self.screen {
                 Screen::Timeline => {
                     self.timeline.select_next();
+                    self.load_selected_post_images();
                     if self.timeline.near_bottom(20) {
                         self.dispatch(Action::LoadMoreTimeline);
                     }
                 }
                 Screen::Profile => {
                     self.profile_feed.select_next();
+                    self.load_selected_post_images();
                 }
                 Screen::Thread => {
                     // Thread navigation is handled at draw level
@@ -311,8 +391,14 @@ impl App {
             },
 
             Action::SelectPrev => match self.screen {
-                Screen::Timeline => self.timeline.select_prev(),
-                Screen::Profile => self.profile_feed.select_prev(),
+                Screen::Timeline => {
+                    self.timeline.select_prev();
+                    self.load_selected_post_images();
+                }
+                Screen::Profile => {
+                    self.profile_feed.select_prev();
+                    self.load_selected_post_images();
+                }
                 _ => {}
             },
 
@@ -355,6 +441,7 @@ impl App {
 
             Action::ThreadLoaded(thread) => {
                 self.thread = *thread;
+                self.load_selected_post_images();
             }
 
             Action::GoBack => {
@@ -596,6 +683,22 @@ impl App {
                 self.error_message = None;
             }
 
+            Action::ImageLoaded {
+                post_uri,
+                protocol,
+                cols,
+                rows,
+            } => {
+                self.image_protocols.insert(
+                    post_uri,
+                    ImageState {
+                        protocol,
+                        cols,
+                        rows,
+                    },
+                );
+            }
+
             _ => {}
         }
     }
@@ -628,7 +731,7 @@ impl App {
         }
     }
 
-    fn draw(&self, frame: &mut ratatui::Frame) {
+    fn draw(&mut self, frame: &mut ratatui::Frame) {
         let area = frame.area();
 
         let chunks = Layout::default()
@@ -649,10 +752,20 @@ impl App {
                 self.login_form.draw(frame, chunks[1]);
             }
             Screen::Timeline => {
-                crate::ui::timeline::draw_timeline(frame, chunks[1], &self.timeline);
+                crate::ui::timeline::draw_timeline(
+                    frame,
+                    chunks[1],
+                    &self.timeline,
+                    &mut self.image_protocols,
+                );
             }
             Screen::Thread => {
-                crate::ui::thread::draw_thread(frame, chunks[1], self.thread.as_ref());
+                crate::ui::thread::draw_thread(
+                    frame,
+                    chunks[1],
+                    self.thread.as_ref(),
+                    &mut self.image_protocols,
+                );
             }
             Screen::Profile => {
                 crate::ui::profile::draw_profile(
