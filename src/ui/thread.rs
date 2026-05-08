@@ -1,10 +1,15 @@
 use ratatui::prelude::*;
 use ratatui::widgets::{Block, Borders, Paragraph};
-
 use crate::models::thread::ThreadViewModel;
 use crate::ui::post_widget;
+use crate::app::ImageState;
 
-pub fn draw_thread(frame: &mut Frame, area: Rect, thread: Option<&ThreadViewModel>) {
+pub fn draw_thread(
+    frame: &mut Frame,
+    area: Rect,
+    thread: Option<&ThreadViewModel>,
+    image_protocols: &mut std::collections::HashMap<String, ImageState>,
+) {
     let thread = match thread {
         Some(t) => t,
         None => {
@@ -15,38 +20,35 @@ pub fn draw_thread(frame: &mut Frame, area: Rect, thread: Option<&ThreadViewMode
             return;
         }
     };
-
     let mut y = area.y;
     let max_y = area.bottom();
 
-    // Parent chain
     for parent in &thread.parents {
         if y >= max_y {
             break;
         }
-        let h = post_widget::post_height(parent, area.width).min(max_y - y);
+        let image_rows = image_protocols.get(&parent.uri).map(|s| s.rows);
+        let h = post_widget::post_height(parent, area.width, image_rows).min(max_y - y);
         let post_area = Rect::new(area.x, y, area.width, h);
-        post_widget::draw_post(frame, post_area, parent, false);
+        let protocol = image_protocols.get_mut(&parent.uri);
+        post_widget::draw_post(frame, post_area, parent, false, protocol);
         y += h;
-
-        // Thread connector
         if y < max_y {
-            let connector = Paragraph::new("│")
-                .style(Style::default().fg(Color::DarkGray));
+            let connector = Paragraph::new("│").style(Style::default().fg(Color::DarkGray));
             frame.render_widget(connector, Rect::new(area.x + 1, y, 1, 1));
             y += 1;
         }
     }
 
-    // Focal post (highlighted)
     if y < max_y {
-        let h = post_widget::post_height(&thread.focal, area.width).min(max_y - y);
+        let image_rows = image_protocols.get(&thread.focal.uri).map(|s| s.rows);
+        let h = post_widget::post_height(&thread.focal, area.width, image_rows).min(max_y - y);
         let post_area = Rect::new(area.x, y, area.width, h);
-        post_widget::draw_post(frame, post_area, &thread.focal, true);
+        let protocol = image_protocols.get_mut(&thread.focal.uri);
+        post_widget::draw_post(frame, post_area, &thread.focal, true, protocol);
         y += h;
     }
 
-    // Separator
     if y < max_y {
         let sep = Block::default()
             .borders(Borders::TOP)
@@ -55,7 +57,6 @@ pub fn draw_thread(frame: &mut Frame, area: Rect, thread: Option<&ThreadViewMode
         y += 1;
     }
 
-    // Replies header
     if y < max_y && !thread.replies.is_empty() {
         let header = Paragraph::new(format!(
             " {} {}",
@@ -67,16 +68,17 @@ pub fn draw_thread(frame: &mut Frame, area: Rect, thread: Option<&ThreadViewMode
         y += 1;
     }
 
-    // Replies
     for reply in &thread.replies {
         if y >= max_y {
             break;
         }
         let indented_x = area.x + 2;
         let indented_w = area.width.saturating_sub(2);
-        let h = post_widget::post_height(reply, indented_w).min(max_y - y);
+        let image_rows = image_protocols.get(&reply.uri).map(|s| s.rows);
+        let h = post_widget::post_height(reply, indented_w, image_rows).min(max_y - y);
         let reply_area = Rect::new(indented_x, y, indented_w, h);
-        post_widget::draw_post(frame, reply_area, reply, false);
+        let protocol = image_protocols.get_mut(&reply.uri);
+        post_widget::draw_post(frame, reply_area, reply, false, protocol);
         y += h;
     }
 }
