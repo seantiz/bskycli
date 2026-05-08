@@ -22,6 +22,7 @@ pub struct PostViewModel {
     pub embed_summary: Option<EmbedSummary>,
     pub reply_parent_author: Option<String>,
     pub reposted_by: Option<String>,
+    pub images: Vec<ImageMeta>,
 }
 
 #[derive(Debug, Clone)]
@@ -39,6 +40,12 @@ pub enum FacetKind {
 }
 
 #[derive(Debug, Clone)]
+pub struct ImageMeta {
+    pub size: String,
+    pub alt: Option<String>,
+}
+
+#[derive(Debug, Clone)]
 pub struct EmbedSummary {
     pub kind: EmbedKind,
     pub title: Option<String>,
@@ -49,7 +56,7 @@ pub struct EmbedSummary {
 #[derive(Debug, Clone)]
 pub enum EmbedKind {
     ExternalLink,
-    Images(usize),
+    Images(Vec<ImageMeta>),
     Video,
     Record,
     RecordWithMedia,
@@ -124,6 +131,7 @@ impl PostViewModel {
             embed_summary,
             reply_parent_author,
             reposted_by,
+            images: Vec::new(),
         })
     }
 }
@@ -184,7 +192,10 @@ fn extract_embed_summary(
         }
         Union::Refs(PostViewEmbedRefs::AppBskyEmbedImagesView(imgs)) => {
             Some(EmbedSummary {
-                kind: EmbedKind::Images(imgs.images.len()),
+                kind: EmbedKind::Images(imgs.images.iter().map(|i| ImageMeta {
+                    size: i.fullsize.clone(),
+                    alt: Some(i.alt.clone()),
+                }).collect()),
                 title: None,
                 description: None,
                 url: None,
