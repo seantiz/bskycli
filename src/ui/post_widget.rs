@@ -1,10 +1,10 @@
 use ratatui::prelude::*;
 use ratatui::widgets::{Block, Borders, Paragraph, Wrap};
 
+use crate::app::ImageState;
 use crate::models::post::PostViewModel;
 use crate::utils::text::{styled_text, wrapped_line_count};
 use crate::utils::time::relative_time;
-use crate::app::ImageState;
 
 pub fn post_height(post: &PostViewModel, width: u16, image_rows: Option<u16>) -> u16 {
     let text_width = width.saturating_sub(4);
@@ -25,11 +25,13 @@ pub fn post_height(post: &PostViewModel, width: u16, image_rows: Option<u16>) ->
     height
 }
 
-pub fn draw_post(frame: &mut Frame,
+pub fn draw_post(
+    frame: &mut Frame,
     area: Rect,
     post: &PostViewModel,
     selected: bool,
-    _image_state: Option<&mut ImageState>,) {
+    image_state: Option<&mut ImageState>,
+) {
     let border_style = if selected {
         Style::default().cyan()
     } else {
@@ -54,7 +56,9 @@ pub fn draw_post(frame: &mut Frame,
 
     // Repost indicator
     if let Some(ref reposted_by) = post.reposted_by {
-        if y >= bottom { return; }
+        if y >= bottom {
+            return;
+        }
         let repost_line = Line::from(vec![
             Span::styled("⟳ ", Style::default().green()),
             Span::styled(
@@ -62,16 +66,15 @@ pub fn draw_post(frame: &mut Frame,
                 Style::default().dark_gray(),
             ),
         ]);
-        frame.render_widget(
-            Paragraph::new(repost_line),
-            Rect::new(x, y, w, 1),
-        );
+        frame.render_widget(Paragraph::new(repost_line), Rect::new(x, y, w, 1));
         y += 1;
     }
 
     // Reply indicator
     if let Some(ref parent_author) = post.reply_parent_author {
-        if y >= bottom { return; }
+        if y >= bottom {
+            return;
+        }
         let reply_line = Line::from(vec![
             Span::styled("↩ ", Style::default().blue()),
             Span::styled(
@@ -79,37 +82,29 @@ pub fn draw_post(frame: &mut Frame,
                 Style::default().dark_gray(),
             ),
         ]);
-        frame.render_widget(
-            Paragraph::new(reply_line),
-            Rect::new(x, y, w, 1),
-        );
+        frame.render_widget(Paragraph::new(reply_line), Rect::new(x, y, w, 1));
         y += 1;
     }
 
     // Author line
-    if y >= bottom { return; }
+    if y >= bottom {
+        return;
+    }
     let time_str = relative_time(&post.created_at);
     let author_line = Line::from(vec![
-        Span::styled(
-            &post.author_display_name,
-            Style::default().white().bold(),
-        ),
+        Span::styled(&post.author_display_name, Style::default().white().bold()),
         Span::styled(
             format!("  @{}", post.author_handle),
             Style::default().dark_gray(),
         ),
-        Span::styled(
-            format!("  {}", time_str),
-            Style::default().dark_gray(),
-        ),
+        Span::styled(format!("  {}", time_str), Style::default().dark_gray()),
     ]);
-    frame.render_widget(
-        Paragraph::new(author_line),
-        Rect::new(x, y, w, 1),
-    );
+    frame.render_widget(Paragraph::new(author_line), Rect::new(x, y, w, 1));
     y += 1;
 
-    if y >= bottom { return; }
+    if y >= bottom {
+        return;
+    }
     let text_lines = styled_text(&post.text, &post.facets);
     let remaining = bottom.saturating_sub(y);
     let text_height = remaining.saturating_sub(2).max(1).min(remaining);
@@ -123,19 +118,33 @@ pub fn draw_post(frame: &mut Frame,
     if let Some(ref embed) = post.embed_summary {
         if y < bottom {
             if let crate::models::post::EmbedKind::Images(n) = &embed.kind {
-                draw_embed_images(frame, x, y, w, n.len());
-                y += 1;
+                if let Some(state) = image_state {
+                    let h = (bottom - y).min(state.rows);
+                    let img_area = Rect::new(x, y, state.cols.min(w), h);
+                    frame.render_stateful_widget(
+                        ratatui_image::StatefulImage::default(),
+                        img_area,
+                        &mut state.protocol,
+                    );
+                    y += h;
+                } else {
+                    draw_embed_images(frame, x, y, w, n.len());
+                    y += 1;
+                }
             } else {
                 let embed_text = match (&embed.title, &embed.description) {
                     (Some(t), _) => format!("📎 {}", t),
                     (_, Some(d)) => format!("📎 {}", d),
-                    _ => format!("📎 [{}]", match embed.kind {
-                        crate::models::post::EmbedKind::ExternalLink => "link",
-                        crate::models::post::EmbedKind::Video => "video",
-                        crate::models::post::EmbedKind::Record => "quote",
-                        crate::models::post::EmbedKind::RecordWithMedia => "quote+media",
-                        crate::models::post::EmbedKind::Images(_) => unreachable!(),
-                    }),
+                    _ => format!(
+                        "📎 [{}]",
+                        match embed.kind {
+                            crate::models::post::EmbedKind::ExternalLink => "link",
+                            crate::models::post::EmbedKind::Video => "video",
+                            crate::models::post::EmbedKind::Record => "quote",
+                            crate::models::post::EmbedKind::RecordWithMedia => "quote+media",
+                            crate::models::post::EmbedKind::Images(_) => unreachable!(),
+                        }
+                    ),
                 };
                 frame.render_widget(
                     Paragraph::new(embed_text).style(Style::default().dark_gray()),
@@ -160,16 +169,10 @@ pub fn draw_post(frame: &mut Frame,
         };
 
         let stats = Line::from(vec![
-            Span::styled(
-                if post.is_liked { "♥ " } else { "♡ " },
-                like_style,
-            ),
+            Span::styled(if post.is_liked { "♥ " } else { "♡ " }, like_style),
             Span::styled(format!("{}", post.like_count), like_style),
             Span::raw("  "),
-            Span::styled(
-                if post.is_reposted { "⟳ " } else { "⟳ " },
-                repost_style,
-            ),
+            Span::styled(if post.is_reposted { "⟳ " } else { "⟳ " }, repost_style),
             Span::styled(format!("{}", post.repost_count), repost_style),
             Span::raw("  "),
             Span::styled(
