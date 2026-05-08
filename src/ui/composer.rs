@@ -1,7 +1,8 @@
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use ratatui::crossterm::event::{KeyCode as RKeyCode, KeyEvent as RKeyEvent, KeyModifiers as RKeyModifiers};
 use ratatui::prelude::*;
 use ratatui::widgets::{Block, Borders, Clear, Paragraph};
-use tui_textarea::TextArea;
+use ratatui_textarea::TextArea;
 
 use crate::action::Action;
 use crate::api::client::ReplyRef;
@@ -21,10 +22,9 @@ impl Composer {
         textarea.set_block(
             Block::default()
                 .borders(Borders::ALL)
-                .border_style(Style::default().fg(Color::DarkGray))
+                .border_style(Style::default().dark_gray())
                 .title(" Compose "),
         );
-        textarea.set_cursor_line_style(Style::default());
         textarea.set_placeholder_text("What's on your mind?");
 
         Composer {
@@ -41,7 +41,7 @@ impl Composer {
             self.textarea.set_block(
                 Block::default()
                     .borders(Borders::ALL)
-                    .border_style(Style::default().fg(Color::DarkGray))
+                    .border_style(Style::default().dark_gray())
                     .title(format!(
                         " Reply to {} ",
                         self.reply_to_author.as_deref().unwrap_or("post")
@@ -66,13 +66,10 @@ impl Composer {
 
 impl Component for Composer {
     fn handle_key_event(&mut self, key: KeyEvent) -> Option<Action> {
-        // Esc closes the composer
         if key.code == KeyCode::Esc {
             return Some(Action::CloseComposer);
         }
 
-        // Enter (with or without modifiers) submits the post
-        // Ctrl+S also submits
         if key.code == KeyCode::Enter
             || (key.modifiers.contains(KeyModifiers::CONTROL)
                 && key.code == KeyCode::Char('s'))
@@ -87,11 +84,20 @@ impl Component for Composer {
             });
         }
 
-        // All other keys go to the textarea
         match key.code {
             KeyCode::Char(_) if self.char_count() >= MAX_CHARS => return None,
-            _ => self.textarea.input(key),
-        };
+            KeyCode::Char(c) => {
+                self.textarea.input(RKeyEvent::new(RKeyCode::Char(c), RKeyModifiers::NONE));
+            }
+            KeyCode::Enter => {
+                self.textarea.input(RKeyEvent::new(RKeyCode::Enter, RKeyModifiers::NONE));
+            }
+            KeyCode::Backspace => {
+                self.textarea.input(RKeyEvent::new(RKeyCode::Backspace, RKeyModifiers::NONE));
+            }
+            KeyCode::Esc => {}
+            _ => {}
+        }
         None
     }
 
@@ -116,14 +122,13 @@ impl Component for Composer {
 
         frame.render_widget(&self.textarea, chunks[0]);
 
-        // Character counter + hints
         let count = self.char_count();
         let counter_style = if count > MAX_CHARS {
-            Style::default().fg(Color::Red)
+            Style::default().red()
         } else if count > MAX_CHARS - 20 {
-            Style::default().fg(Color::Yellow)
+            Style::default().yellow()
         } else {
-            Style::default().fg(Color::DarkGray)
+            Style::default().dark_gray()
         };
 
         let status = Line::from(vec![
@@ -134,7 +139,7 @@ impl Component for Composer {
             Span::raw("  "),
             Span::styled(
                 "Enter: post  Esc: cancel",
-                Style::default().fg(Color::DarkGray),
+                Style::default().dark_gray(),
             ),
         ]);
         frame.render_widget(Paragraph::new(status), chunks[1]);

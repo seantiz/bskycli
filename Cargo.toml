@@ -53,6 +53,7 @@ url = "2"
 ipld-core = "0.4.3"
 parking_lot = "0.12"
 dirs = "5"
+ratatui-textarea = "0.9.1"
 
 
 
