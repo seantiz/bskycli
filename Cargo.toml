@@ -11,7 +11,7 @@ path = "src/main.rs"
 
 [dependencies]
 # TUI
-ratatui = "0.29"
+ratatui = "0.30.0"
 crossterm = { version = "0.28", features = ["event-stream"] }
 tui-textarea = { version = "0.7", features = ["crossterm"] }
 
@@ -47,8 +47,14 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 uuid = { version = "1", features = ["v4"] }
 open = "5"
+ratatui-image = { version = "10.0", default-features = false, features = [] }
+image = "0.25"
 url = "2"
 ipld-core = "0.4.3"
+parking_lot = "0.12"
+dirs = "5"
+
+
 
 [profile.release]
 lto = true
