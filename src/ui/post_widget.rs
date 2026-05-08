@@ -4,15 +4,13 @@ use ratatui::widgets::{Block, Borders, Paragraph, Wrap};
 use crate::models::post::PostViewModel;
 use crate::utils::text::{styled_text, wrapped_line_count};
 use crate::utils::time::relative_time;
+use crate::app::ImageState;
 
-pub fn post_height(post: &PostViewModel, width: u16) -> u16 {
+pub fn post_height(post: &PostViewModel, width: u16, image_rows: Option<u16>) -> u16 {
     let text_width = width.saturating_sub(4);
     let text_lines = wrapped_line_count(&post.text, text_width);
 
-    let mut height = 1  // author line
-        + text_lines     // post text
-        + 1              // stats line
-        + 1;             // bottom border/padding
+    let mut height = 1 + text_lines + 1 + 1;
 
     if post.reply_parent_author.is_some() {
         height += 1;
@@ -21,17 +19,21 @@ pub fn post_height(post: &PostViewModel, width: u16) -> u16 {
         height += 1;
     }
     if post.embed_summary.is_some() {
-        height += 1;
+        height += image_rows.unwrap_or(1);
     }
 
     height
 }
 
-pub fn draw_post(frame: &mut Frame, area: Rect, post: &PostViewModel, selected: bool) {
+pub fn draw_post(frame: &mut Frame,
+    area: Rect,
+    post: &PostViewModel,
+    selected: bool,
+    _image_state: Option<&mut ImageState>,) {
     let border_style = if selected {
-        Style::default().fg(Color::Cyan)
+        Style::default().cyan()
     } else {
-        Style::default().fg(Color::DarkGray)
+        Style::default().dark_gray()
     };
 
     let block = Block::default()
@@ -54,10 +56,10 @@ pub fn draw_post(frame: &mut Frame, area: Rect, post: &PostViewModel, selected: 
     if let Some(ref reposted_by) = post.reposted_by {
         if y >= bottom { return; }
         let repost_line = Line::from(vec![
-            Span::styled("⟳ ", Style::default().fg(Color::Green)),
+            Span::styled("⟳ ", Style::default().green()),
             Span::styled(
                 format!("Reposted by {}", reposted_by),
-                Style::default().fg(Color::DarkGray),
+                Style::default().dark_gray(),
             ),
         ]);
         frame.render_widget(
@@ -71,10 +73,10 @@ pub fn draw_post(frame: &mut Frame, area: Rect, post: &PostViewModel, selected: 
     if let Some(ref parent_author) = post.reply_parent_author {
         if y >= bottom { return; }
         let reply_line = Line::from(vec![
-            Span::styled("↩ ", Style::default().fg(Color::Blue)),
+            Span::styled("↩ ", Style::default().blue()),
             Span::styled(
                 format!("Reply to {}", parent_author),
-                Style::default().fg(Color::DarkGray),
+                Style::default().dark_gray(),
             ),
         ]);
         frame.render_widget(
@@ -90,17 +92,15 @@ pub fn draw_post(frame: &mut Frame, area: Rect, post: &PostViewModel, selected: 
     let author_line = Line::from(vec![
         Span::styled(
             &post.author_display_name,
-            Style::default()
-                .fg(Color::White)
-                .add_modifier(Modifier::BOLD),
+            Style::default().white().bold(),
         ),
         Span::styled(
             format!("  @{}", post.author_handle),
-            Style::default().fg(Color::DarkGray),
+            Style::default().dark_gray(),
         ),
         Span::styled(
             format!("  {}", time_str),
-            Style::default().fg(Color::DarkGray),
+            Style::default().dark_gray(),
         ),
     ]);
     frame.render_widget(
@@ -109,7 +109,6 @@ pub fn draw_post(frame: &mut Frame, area: Rect, post: &PostViewModel, selected: 
     );
     y += 1;
 
-    // Post text
     if y >= bottom { return; }
     let text_lines = styled_text(&post.text, &post.facets);
     let remaining = bottom.saturating_sub(y);
@@ -121,11 +120,10 @@ pub fn draw_post(frame: &mut Frame, area: Rect, post: &PostViewModel, selected: 
     let wrap_lines = wrapped_line_count(&post.text, w);
     y += wrap_lines.min(remaining);
 
-    // Embed summary
     if let Some(ref embed) = post.embed_summary {
         if y < bottom {
-            if let crate::models::post::EmbedKind::Images(n) = embed.kind {
-                draw_embed_images(frame, x, y, w, n);
+            if let crate::models::post::EmbedKind::Images(n) = &embed.kind {
+                draw_embed_images(frame, x, y, w, n.len());
                 y += 1;
             } else {
                 let embed_text = match (&embed.title, &embed.description) {
@@ -140,7 +138,7 @@ pub fn draw_post(frame: &mut Frame, area: Rect, post: &PostViewModel, selected: 
                     }),
                 };
                 frame.render_widget(
-                    Paragraph::new(embed_text).style(Style::default().fg(Color::DarkGray)),
+                    Paragraph::new(embed_text).style(Style::default().dark_gray()),
                     Rect::new(x, y, w, 1),
                 );
                 y += 1;
@@ -151,14 +149,14 @@ pub fn draw_post(frame: &mut Frame, area: Rect, post: &PostViewModel, selected: 
     // Stats line
     if y < bottom {
         let like_style = if post.is_liked {
-            Style::default().fg(Color::Red)
+            Style::default().red()
         } else {
-            Style::default().fg(Color::DarkGray)
+            Style::default().dark_gray()
         };
         let repost_style = if post.is_reposted {
-            Style::default().fg(Color::Green)
+            Style::default().green()
         } else {
-            Style::default().fg(Color::DarkGray)
+            Style::default().dark_gray()
         };
 
         let stats = Line::from(vec![
@@ -176,7 +174,7 @@ pub fn draw_post(frame: &mut Frame, area: Rect, post: &PostViewModel, selected: 
             Span::raw("  "),
             Span::styled(
                 format!("Replies {}", post.reply_count),
-                Style::default().fg(Color::DarkGray),
+                Style::default().dark_gray(),
             ),
         ]);
         frame.render_widget(Paragraph::new(stats), Rect::new(x, y, w, 1));
@@ -186,7 +184,7 @@ pub fn draw_post(frame: &mut Frame, area: Rect, post: &PostViewModel, selected: 
 fn draw_embed_images(frame: &mut Frame, x: u16, y: u16, w: u16, count: usize) {
     let text = format!("🖼 {} image{}", count, if count != 1 { "s" } else { "" });
     frame.render_widget(
-        Paragraph::new(text).style(Style::default().fg(Color::DarkGray)),
+        Paragraph::new(text).style(Style::default().dark_gray()),
         Rect::new(x, y, w, 1),
     );
 }
