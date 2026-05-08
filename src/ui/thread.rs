@@ -14,7 +14,7 @@ pub fn draw_thread(
         Some(t) => t,
         None => {
             let loading = Paragraph::new("Loading thread...")
-                .style(Style::default().fg(Color::Yellow))
+                .style(Style::default().yellow())
                 .alignment(Alignment::Center);
             frame.render_widget(loading, area);
             return;
@@ -34,7 +34,7 @@ pub fn draw_thread(
         post_widget::draw_post(frame, post_area, parent, false, protocol);
         y += h;
         if y < max_y {
-            let connector = Paragraph::new("│").style(Style::default().fg(Color::DarkGray));
+            let connector = Paragraph::new("│").style(Style::default().dark_gray());
             frame.render_widget(connector, Rect::new(area.x + 1, y, 1, 1));
             y += 1;
         }
@@ -52,7 +52,7 @@ pub fn draw_thread(
     if y < max_y {
         let sep = Block::default()
             .borders(Borders::TOP)
-            .border_style(Style::default().fg(Color::DarkGray));
+            .border_style(Style::default().dark_gray());
         frame.render_widget(sep, Rect::new(area.x, y, area.width, 1));
         y += 1;
     }
@@ -63,7 +63,7 @@ pub fn draw_thread(
             thread.replies.len(),
             if thread.replies.len() == 1 { "reply" } else { "replies" }
         ))
-        .style(Style::default().fg(Color::Gray));
+        .style(Style::default().gray());
         frame.render_widget(header, Rect::new(area.x, y, area.width, 1));
         y += 1;
     }
