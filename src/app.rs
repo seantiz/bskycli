@@ -367,20 +367,17 @@ impl App {
                 } else {
                     self.timeline.replace_posts(posts, cursor);
                 }
-                self.load_selected_post_images();
             }
 
             Action::SelectNext => match self.screen {
                 Screen::Timeline => {
                     self.timeline.select_next();
-                    self.load_selected_post_images();
                     if self.timeline.near_bottom(20) {
                         self.dispatch(Action::LoadMoreTimeline);
                     }
                 }
                 Screen::Profile => {
                     self.profile_feed.select_next();
-                    self.load_selected_post_images();
                 }
                 Screen::Thread => {
                     // Thread navigation is handled at draw level
@@ -391,11 +388,9 @@ impl App {
             Action::SelectPrev => match self.screen {
                 Screen::Timeline => {
                     self.timeline.select_prev();
-                    self.load_selected_post_images();
                 }
                 Screen::Profile => {
                     self.profile_feed.select_prev();
-                    self.load_selected_post_images();
                 }
                 _ => {}
             },
@@ -754,7 +749,6 @@ impl App {
                     frame,
                     chunks[1],
                     &self.timeline,
-                    &mut self.image_protocols,
                 );
             }
             Screen::Thread => {
