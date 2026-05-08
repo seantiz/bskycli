@@ -3,7 +3,6 @@
 mod action;
 mod api;
 mod app;
-mod config;
 mod event;
 mod models;
 mod tui;

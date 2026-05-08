@@ -107,7 +107,11 @@ fn draw_profile_header(frame: &mut Frame, area: Rect, profile: &ProfileViewModel
     frame.render_widget(Paragraph::new(stats), chunks[3]);
 }
 
-fn draw_author_feed(frame: &mut Frame, area: Rect, feed: &FeedState) {
+fn draw_author_feed(
+    frame: &mut Frame,
+    area: Rect,
+    feed: &FeedState,
+) {
     if feed.loading && feed.posts.is_empty() {
         let loading = Paragraph::new("Loading posts...")
             .style(Style::default().fg(Color::Yellow))
@@ -131,9 +135,9 @@ fn draw_author_feed(frame: &mut Frame, area: Rect, feed: &FeedState) {
         if y >= max_y {
             break;
         }
-        let h = post_widget::post_height(post, area.width).min(max_y - y);
+        let h = post_widget::post_height(post, area.width, None).min(max_y - y);
         let post_area = Rect::new(area.x, y, area.width, h);
-        post_widget::draw_post(frame, post_area, post, i == feed.selected_index);
+        post_widget::draw_post(frame, post_area, post, i == feed.selected_index, None);
         y += h;
     }
 }

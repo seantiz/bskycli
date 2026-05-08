@@ -1,91 +1,86 @@
 use ratatui::prelude::*;
 use ratatui::widgets::{Block, Borders, Paragraph};
-
 use crate::models::feed::FeedState;
 use crate::ui::post_widget;
 
-pub fn draw_timeline(frame: &mut Frame, area: Rect, feed: &FeedState) {
+pub fn draw_timeline(
+    frame: &mut Frame,
+    mut area: Rect,
+    feed: &FeedState,
+) {
     if feed.loading && feed.posts.is_empty() {
-        let loading = Paragraph::new("Loading timeline...")
-            .style(Style::default().fg(Color::Yellow))
-            .alignment(Alignment::Center)
-            .block(Block::default().borders(Borders::NONE));
-        frame.render_widget(loading, area);
+        frame.render_widget(
+            Paragraph::new("Loading...")
+                .style(Style::default().yellow())
+                .alignment(Alignment::Center)
+                .block(Block::default().borders(Borders::NONE)),
+            area,
+        );
         return;
     }
 
     if feed.posts.is_empty() {
-        let empty = Paragraph::new("No posts yet. Press R to refresh.")
-            .style(Style::default().fg(Color::DarkGray))
-            .alignment(Alignment::Center);
-        frame.render_widget(empty, area);
+        frame.render_widget(
+            Paragraph::new("Press R to refresh.")
+                .style(Style::default().dark_gray())
+                .alignment(Alignment::Center),
+            area,
+        );
         return;
     }
 
-    // Virtual scrolling: only render visible posts
-    let mut y = area.y;
-    let max_y = area.bottom();
+    let heights: Vec<usize> = feed.posts.iter()
+        .map(|p| post_widget::post_height(p, area.width, None) as usize)
+        .collect();
 
-    // Calculate scroll offset to keep selected post visible
-    let mut offset = feed.scroll_offset;
-    let visible_height = area.height as usize;
+    let hovered_post = feed.selected_index;
+    let viewport = area.height as usize;
 
-    // Adjust offset so selected post is visible
-    // First, calculate heights of posts up to selected
-    let mut cumulative_height: usize = 0;
-    let mut selected_start: usize = 0;
-    let mut selected_height: usize = 0;
+    let top_of_hp: usize = heights[..hovered_post].iter().sum();
+    let height_of_hp = heights[hovered_post];
 
-    for (i, post) in feed.posts.iter().enumerate() {
-        let h = post_widget::post_height(post, area.width) as usize;
-        if i == feed.selected_index {
-            selected_start = cumulative_height;
-            selected_height = h;
-            break;
-        }
-        cumulative_height += h;
+    let lookahead: usize = heights
+        .iter()
+        .skip(hovered_post + 1)
+        .take(2)
+        .sum();
+
+    let start_lookback_from = hovered_post.saturating_sub(2);
+    let lookback: usize = heights[start_lookback_from..hovered_post].iter().sum();
+
+    let mut scroll = feed.scroll_offset;
+    if top_of_hp < scroll.saturating_sub(lookback) {
+        scroll = top_of_hp.saturating_sub(lookback);
+    } else if top_of_hp + height_of_hp + lookahead > scroll + viewport {
+        scroll = (top_of_hp + height_of_hp + lookahead).saturating_sub(viewport);
     }
 
-    // Ensure selected post is within view
-    if selected_start < offset {
-        offset = selected_start;
-    } else if selected_start + selected_height > offset + visible_height {
-        offset = (selected_start + selected_height).saturating_sub(visible_height);
-    }
+    let mut passed: usize = 0;
+    for (i, meta) in feed.posts.iter().enumerate() {
+        let h = heights[i];
 
-    // Render from offset
-    let mut running_height: usize = 0;
-    for (i, post) in feed.posts.iter().enumerate() {
-        let h = post_widget::post_height(post, area.width);
-
-        if running_height + h as usize <= offset {
-            running_height += h as usize;
+        if passed + h <= scroll {
+            passed += h;
             continue;
         }
 
-        if y >= max_y {
+        if area.y >= area.bottom() {
             break;
         }
 
-        let available_h = (max_y - y).min(h);
-        let post_area = Rect::new(area.x, y, area.width, available_h);
-
-        let selected = i == feed.selected_index;
-        post_widget::draw_post(frame, post_area, post, selected);
-
-        y += available_h;
-        running_height += h as usize;
+        let above_fold = (area.bottom() - area.y).min(h as u16);
+        let post = Rect::new(area.x, area.y, area.width, above_fold);
+        post_widget::draw_post(frame, post, meta, i == hovered_post, None);
+        area.y += above_fold;
+        passed += h;
     }
 
-    // Loading indicator at bottom
-    if feed.loading {
-        if y < max_y {
-            frame.render_widget(
-                Paragraph::new("Loading more...")
-                    .style(Style::default().fg(Color::Yellow))
-                    .alignment(Alignment::Center),
-                Rect::new(area.x, y, area.width, 1),
-            );
-        }
+    if feed.loading && area.y < area.bottom() {
+        frame.render_widget(
+            Paragraph::new("Loading more posts...")
+                .style(Style::default().yellow())
+                .alignment(Alignment::Center),
+            Rect::new(area.x, area.y, area.width, 1),
+        );
     }
 }

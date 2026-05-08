@@ -2,8 +2,8 @@ use crate::api::client::ReplyRef;
 use crate::models::post::PostViewModel;
 use crate::models::profile::ProfileViewModel;
 use crate::models::thread::ThreadViewModel;
+use ratatui_image::protocol::StatefulProtocol;
 
-#[derive(Debug, Clone)]
 pub enum Action {
     Quit,
     Tick,
@@ -79,8 +79,17 @@ pub enum Action {
         cursor: Option<String>,
     },
 
-
     // Errors
     Error(String),
     ClearError,
+
+    // Images
+    ImageLoaded {
+    post_uri: String,
+    protocol: StatefulProtocol,
+    cols: u16,
+    rows: u16,
+},
 }
+
+
