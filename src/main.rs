@@ -12,37 +12,13 @@ mod utils;
 use std::sync::Arc;
 
 use anyhow::Result;
-use clap::Parser;
 
-#[derive(Parser, Debug)]
-#[command(name = "bskycli", version, about = "A TUI client for Bluesky")]
-struct Cli {
-    /// Bluesky handle (e.g. alice.bsky.social)
-    #[arg(short = 'u', long)]
-    handle: Option<String>,
-
-    /// Use app password authentication instead of OAuth
-    #[arg(long)]
-    app_password: bool,
-
-    /// Log level (error, warn, info, debug, trace)
-    #[arg(short, long, default_value = "error")]
-    log_level: String,
-}
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let cli = Cli::parse();
 
-    tracing_subscriber::fmt()
-        .with_env_filter(
-            tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new(&cli.log_level)),
-        )
-        .with_writer(std::io::stderr)
-        .init();
 
-    let client = Arc::new(api::client::BlueskyClient::new().await?);
+    let client = Arc::new(api::wrapper::AgentWrapper::spinupagain().await?);
 
     let mut terminal = tui::init()?;
 
@@ -53,7 +29,7 @@ async fn main() -> Result<()> {
         default_panic(info);
     }));
 
-    let result = app::App::new(cli.handle, cli.app_password, client).run(&mut terminal).await;
+    let result = app::App::new(client).run(&mut terminal).await;
     tui::restore()?;
 
     result
