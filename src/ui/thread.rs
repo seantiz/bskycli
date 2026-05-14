@@ -13,7 +13,7 @@ pub fn draw_thread(
     let thread = match thread {
         Some(t) => t,
         None => {
-            let loading = Paragraph::new("Loading thread...")
+            let loading = Paragraph::new("One moment...")
                 .style(Style::default().yellow())
                 .alignment(Alignment::Center);
             frame.render_widget(loading, area);

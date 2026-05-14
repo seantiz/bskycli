@@ -14,7 +14,7 @@ pub fn draw_profile(
     let profile = match profile {
         Some(p) => p,
         None => {
-            let loading = Paragraph::new("Loading profile...")
+            let loading = Paragraph::new("One moment...")
                 .style(Style::default().fg(Color::Yellow))
                 .alignment(Alignment::Center);
             frame.render_widget(loading, area);
