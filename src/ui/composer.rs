@@ -5,7 +5,7 @@ use ratatui::widgets::{Block, Borders, Clear, Paragraph};
 use ratatui_textarea::TextArea;
 
 use crate::action::Action;
-use crate::api::client::ReplyRef;
+use crate::api::wrapper::ReplyRef;
 use crate::ui::Component;
 
 const MAX_CHARS: usize = 300;
