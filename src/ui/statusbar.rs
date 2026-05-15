@@ -11,8 +11,8 @@ pub fn draw_statusbar(
     error: Option<&str>,
 ) {
     if let Some(err) = error {
-        let error_bar = Paragraph::new(format!(" Error: {}", err))
-            .style(Style::default().fg(Color::White).bg(Color::Red));
+        let error_bar = Paragraph::new(format!(" There was a problem: {}", err))
+            .style(Style::default().red());
         frame.render_widget(error_bar, area);
         return;
     }
@@ -21,20 +21,18 @@ pub fn draw_statusbar(
         "Enter: post | Esc: cancel"
     } else {
         match screen {
-            Screen::Login => "Tab: switch fields | Enter: login | Esc: quit",
+            Screen::Login => "Tab to cycle and Escape to close",
             Screen::Timeline => {
-                "j/k: navigate | Enter: thread | n: post | r: reply | l: like | t: repost | R: refresh | q: quit"
+                "n: new post | r: reply | l: like | t: repost | R: refresh"
             }
             Screen::Thread => {
-                "r: reply | l: like | t: repost | u: profile | q: quit"
+                "r: reply | l: like | t: repost | u: profile"
             }
-            Screen::Profile => {
-                "j/k: navigate | Enter: thread | Esc: back | q: quit"
-            }
+            Screen::Profile => {""}
         }
     };
 
     let bar = Paragraph::new(format!(" {}", hints))
-        .style(Style::default().fg(Color::DarkGray).bg(Color::Black));
+        .style(Style::default().dark_gray());
     frame.render_widget(bar, area);
 }
