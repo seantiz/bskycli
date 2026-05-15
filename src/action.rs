@@ -27,6 +27,9 @@ pub enum Action {
     LoginSuccess(String),
     LoginFailed(String),
     Logout,
+    LogoutConfirm,
+    DefinitelyLogout,
+    LogoutCancelled,
 
     RefreshTimeline,
     LoadMoreTimeline,

@@ -18,6 +18,7 @@ use crate::models::thread::ThreadViewModel;
 use crate::tui::Tui;
 use crate::ui::Component;
 use crate::ui::composer::Composer;
+use crate::ui::Dialog;
 use crate::ui::login::LoginForm;
 use crate::utils::meta::ImageLibrary;
 use ratatui_image::protocol::StatefulProtocol;
@@ -60,6 +61,7 @@ pub struct App {
     login_form: LoginForm,
     composer: Composer,
     show_composer: bool,
+    logout_confirmation: Option<Dialog>,
 
     image_library: ImageLibrary,
     image_protocols: HashMap<String, ImageState>,
@@ -87,6 +89,7 @@ impl App {
             login_form: LoginForm::new(None),
             composer: Composer::new(),
             show_composer: false,
+            logout_confirmation: None,
             image_library: ImageLibrary::new(),
             image_protocols: std::collections::HashMap::new(),
         }
@@ -146,6 +149,13 @@ impl App {
 
                 if self.screen == Screen::Login {
                     if let Some(action) = self.login_form.handle_key_event(key) {
+                        self.dispatch(action);
+                    }
+                    return;
+                }
+
+                if let Some(ref mut dialog) = self.logout_confirmation {
+                    if let Some(action) = dialog.handle_key_event(key) {
                         self.dispatch(action);
                     }
                     return;
@@ -315,6 +325,22 @@ impl App {
                 self.handle = None;
                 self.screen = Screen::Login;
                 self.timeline = FeedState::new();
+            }
+
+            Action::LogoutConfirm => {
+                self.logout_confirmation = Some(Dialog::new("Press Enter to logout or Esc to cancel."));
+            }
+
+            Action::DefinitelyLogout => {
+                let _ = login_form::logout(&self.client);
+                self.handle = None;
+                self.screen = Screen::Login;
+                self.timeline = FeedState::new();
+                self.logout_confirmation = None;
+            }
+
+            Action::LogoutCancelled => {
+                self.logout_confirmation = None;
             }
 
             Action::RefreshTimeline => {
@@ -781,6 +807,11 @@ impl App {
         // Composer overlay
         if self.show_composer {
             self.composer.draw(frame, area);
+        }
+
+        // Confirm dialog overlay
+        if let Some(ref dialog) = self.logout_confirmation {
+            dialog.draw(frame, area);
         }
     }
 }

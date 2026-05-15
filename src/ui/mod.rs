@@ -1,5 +1,8 @@
 pub mod composer;
+pub mod logout;
 pub mod login;
+
+pub use logout::Dialog;
 pub mod post_widget;
 pub mod profile;
 pub mod statusbar;
