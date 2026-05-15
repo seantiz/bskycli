@@ -10,22 +10,35 @@ use crate::models::post::PostViewModel;
 use crate::models::profile::ProfileViewModel;
 use crate::models::thread::ThreadViewModel;
 
+use keyring_core::Entry;
+
 pub struct AgentWrapper {
     pub agent: BskyAgent,
 }
 
 impl AgentWrapper {
-    pub async fn spinupagain() -> Result<Self> {
+    pub async fn many_sessions(&self, handle: String) -> anyhow::Result<()> {
+        let next_time = Entry::new("bskycli", "user")?;
+        let password = next_time.get_password()?;
+
+        self.agent.login(&handle, &password).await?;
+        Ok(())
+    }
+
+    pub async fn spinupagain() -> anyhow::Result<Self> {
         let start_with_this = dirs::config_dir()
             .expect("Couldn't start the first step of logging in")
             .join("bskycli/config.json");
 
         let some_bs = FileStore::new(&start_with_this);
 
-        let config = match Config::load(&some_bs).await {
+        let config: Config = match Config::load(&some_bs).await {
             Ok(c) => c,
             Err(_) => Config::default(),
         };
+
+        // WARN: Don't assume a session exists
+        let maybe_handle = config.session.as_ref().map(|s| s.handle.to_string());
 
         // WARN: Don't assume an agent can be built from stored config
 
@@ -37,7 +50,12 @@ impl AgentWrapper {
             }
         };
 
-        Ok(AgentWrapper { agent })
+        // WARN: New agent, new tokens
+        let wrapper = AgentWrapper { agent };
+        if let Some(what_we_got_from) = maybe_handle {
+            let _ = wrapper.many_sessions(what_we_got_from).await;
+        }
+        Ok(wrapper)
     }
 
     pub async fn get_timeline(
@@ -88,27 +106,14 @@ impl AgentWrapper {
             parent_height: Some(10u16.try_into().unwrap()),
             uri: uri.to_string(),
         };
-        let output = match self
+        let output = self
             .agent
             .api
             .app
             .bsky
             .feed
             .get_post_thread(params.clone().into())
-            .await
-        {
-            Ok(o) => o,
-            Err(_) => {
-                self.agent.api.com.atproto.server.refresh_session().await?;
-                self.agent
-                    .api
-                    .app
-                    .bsky
-                    .feed
-                    .get_post_thread(params.into())
-                    .await?
-            }
-        };
+            .await?;
 
         use atrium_api::app::bsky::feed::get_post_thread::OutputThreadRefs;
         use atrium_api::types::Union;
@@ -155,13 +160,8 @@ impl AgentWrapper {
             text,
         };
 
-        let result = match self.agent.create_record(record.clone()).await {
-            Ok(r) => r,
-            Err(_) => {
-                self.agent.api.com.atproto.server.refresh_session().await?;
-                self.agent.create_record(record).await?
-            }
-        };
+        let result = self.agent.create_record(record.clone()).await?;
+
         Ok(result.uri.to_string())
     }
 
@@ -176,24 +176,13 @@ impl AgentWrapper {
             via: None,
         };
 
-        let result = match self.agent.create_record(record.clone()).await {
-            Ok(r) => r,
-            Err(_) => {
-                self.agent.api.com.atproto.server.refresh_session().await?;
-                self.agent.create_record(record).await?
-            }
-        };
+        let result = self.agent.create_record(record.clone()).await?;
+
         Ok(result.uri.to_string())
     }
 
     pub async fn unlike(&self, like_uri: &str) -> Result<Object<OutputData>> {
-        match self.agent.delete_record(like_uri).await {
-            Ok(r) => Ok(r),
-            Err(_) => {
-                self.agent.api.com.atproto.server.refresh_session().await?;
-                self.agent.delete_record(like_uri).await
-            }
-        }
+        self.agent.delete_record(like_uri).await
     }
 
     pub async fn repost(&self, uri: &str, cid: &str) -> Result<String> {
@@ -207,51 +196,26 @@ impl AgentWrapper {
             via: None,
         };
 
-        let result = match self.agent.create_record(record.clone()).await {
-            Ok(r) => r,
-            Err(_) => {
-                self.agent.api.com.atproto.server.refresh_session().await?;
-                self.agent.create_record(record).await?
-            }
-        };
+        let result = self.agent.create_record(record.clone()).await?;
         Ok(result.uri.to_string())
     }
 
     pub async fn unrepost(&self, repost_uri: &str) -> Result<Object<OutputData>> {
-        match self.agent.delete_record(repost_uri).await {
-            Ok(r) => Ok(r),
-            Err(_) => {
-                self.agent.api.com.atproto.server.refresh_session().await?;
-                self.agent.delete_record(repost_uri).await
-            }
-        }
+        self.agent.delete_record(repost_uri).await
     }
 
     pub async fn get_profile(&self, actor: &str) -> Result<ProfileViewModel> {
         let params = atrium_api::app::bsky::actor::get_profile::ParametersData {
             actor: actor.parse().expect("valid handle or did"),
         };
-        let output = match self
+        let output = self
             .agent
             .api
             .app
             .bsky
             .actor
             .get_profile(params.clone().into())
-            .await
-        {
-            Ok(o) => o,
-            Err(_) => {
-                self.agent.api.com.atproto.server.refresh_session().await?;
-                self.agent
-                    .api
-                    .app
-                    .bsky
-                    .actor
-                    .get_profile(params.into())
-                    .await?
-            }
-        };
+            .await?;
 
         Ok(ProfileViewModel::from_detailed(&output))
     }
@@ -273,39 +237,14 @@ impl AgentWrapper {
             // WARN: This is from a LimitedNonZeroU8 type in atrium
             limit: 50u8.try_into().ok(),
         };
-        let output = match self
+        let output = self
             .agent
             .api
             .app
             .bsky
             .feed
             .get_author_feed(params.clone().into())
-            .await
-        {
-            Ok(o) => o,
-            Err(_) => {
-                self.agent.api.com.atproto.server.refresh_session().await?;
-                self.agent
-                    .api
-                    .app
-                    .bsky
-                    .feed
-                    .get_author_feed(
-                        atrium_api::app::bsky::feed::get_author_feed::ParametersData {
-                            actor: actor_str
-                                .parse()
-                                .expect("Couldn't recognise your login info"),
-                            cursor,
-                            filter: None,
-                            include_pins: None,
-                            // WARN: This is from a LimitedNonZeroU8 type in atrium
-                            limit: 50u8.try_into().ok(),
-                        }
-                        .into(),
-                    )
-                    .await?
-            }
-        };
+            .await?;
 
         let posts: Vec<PostViewModel> = output
             .feed

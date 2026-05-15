@@ -1,7 +1,8 @@
 use super::wrapper::AgentWrapper;
 use bsky_sdk::agent::config::FileStore;
-use std::fs::remove_file;
+use keyring_core::Entry;
 use std::error::Error;
+use std::fs::remove_file;
 
 // WARN: This comes before the bskyclient wrapper
 pub async fn login(
@@ -12,7 +13,11 @@ pub async fn login(
     let session = client.agent.login(identifier, password).await?;
     let retrieved_this_time = client.agent.to_config().await;
     retrieved_this_time
-        .save(&FileStore::new(yet_again())).await?;
+        .save(&FileStore::new(yet_again()))
+        .await?;
+
+    let next_time = Entry::new("bskycli", "user")?;
+    next_time.set_password(&password)?;
 
     // WARN: Confusing because the client can't do anything until this store has been created
     Ok(session.handle.to_string())
@@ -28,8 +33,5 @@ pub async fn logout(client: &AgentWrapper) -> Result<(), Box<dyn Error>> {
     client.agent.api.com.atproto.server.delete_session().await?;
     let why_are_we_deleting_this = yet_again();
     remove_file(why_are_we_deleting_this)?;
-Ok(())
-
-
+    Ok(())
 }
-
