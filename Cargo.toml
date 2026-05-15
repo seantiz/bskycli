@@ -35,9 +35,11 @@ ratatui-image = { version = "10.0", default-features = false, features = [] }
 image = "0.25"
 url = "2"
 ipld-core = "0.4.3"
-parking_lot = "0.12"
 dirs = "5"
 ratatui-textarea = "0.9.1"
+atrium-xrpc-client = "0.5.15"
+keyring-core = "1.0.0"
+apple-native-keyring-store = { version = "1.0.0", features = ["keychain"] }
 
 [profile.release]
 lto = true
