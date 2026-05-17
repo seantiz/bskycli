@@ -1,10 +1,12 @@
 # Bluesky CLI client
-I needed Bluesky from the terminal so I spun this one off `skyscraper-cli`.
+I needed Bluesky from the terminal so I spun this one off `skyscraper-cli`. 
 
-I can make a brief note on how to handle new create sessions (because Lexicon XRPC demands they're made frequently) if anything is unclear.
+NOTE: This program is me hacking around the lexicon schema and endpoints of the AT Protocol, so this isn't a stable bsky client. It does the job and is secure, but that's about all it can say for itself right now.
+
+I also stripped out `clap` parsing, so if you want a cli that's more aligned with Unix standards I'd downloaded the original `skyscraper` cli instead.
 
 ## Installation
-Currently you can only build this from source. Git clone it, make sure you have `cargo` installed and run it at project root to build or install.
+You can only build this from source right now. Git clone it, make sure you have `cargo` installed and run it at project root to build or install.
 
 If you choose to install this bsky app globally with `cargo install --path .` then the final app is executable by running `bsky` to open it.
 
