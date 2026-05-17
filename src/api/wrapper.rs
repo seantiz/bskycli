@@ -1,68 +1,61 @@
-use anyhow::Result;
-use atrium_api::types::{Object};
-use atrium_api::com::atproto::server::create_session::OutputData;
-use bsky_sdk::BskyAgent;
-use ipld_core::ipld::Ipld;
+use atrium_api::com::atproto::repo::delete_record::OutputData;
+use atrium_api::types::Object;
 use atrium_api::types::string::Datetime;
+use bsky_sdk::Result;
 
-use crate::api::session;
-use crate::api::session::SessionData;
+use bsky_sdk::BskyAgent;
+use bsky_sdk::agent::config::{Config, FileStore};
+
 use crate::models::post::PostViewModel;
 use crate::models::profile::ProfileViewModel;
 use crate::models::thread::ThreadViewModel;
 
-pub struct BlueskyClient {
-    agent: BskyAgent,
+use keyring_core::Entry;
+
+pub struct AgentWrapper {
+    pub agent: BskyAgent,
 }
 
-impl BlueskyClient {
-    pub async fn new() -> Result<Self> {
-        let agent = BskyAgent::builder().build().await?;
-        Ok(BlueskyClient { agent })
-    }
+impl AgentWrapper {
+    pub async fn many_sessions(&self, handle: String) -> anyhow::Result<()> {
+        let next_time = Entry::new("bskycli", "user")?;
+        let password = next_time.get_password()?;
 
-    pub async fn login_app_password(&self, identifier: &str, password: &str) -> Result<SessionData> {
-        let session = self.agent.login(identifier, password).await?;
-        let handle = session.handle.to_string();
-        let did = session.did.to_string();
-        let access_jwt = session.access_jwt.clone();
-        let refresh_jwt = session.refresh_jwt.clone();
-
-        let session_data = SessionData {
-            did,
-            handle: handle.clone(),
-            access_jwt,
-            refresh_jwt,
-            pds_endpoint: None,
-        };
-        session::save_session(&session_data)?;
-
-        Ok(session_data)
-    }
-
-    pub async fn restore_session(&self, access_jwt: &str, refresh_jwt: &str, did: &str, handle: &str) -> Result<()> {
-        let session_data = OutputData {
-            access_jwt: access_jwt.to_string(),
-            refresh_jwt: refresh_jwt.to_string(),
-            did: did.parse().map_err(|_| anyhow::anyhow!("invalid did"))?,
-            handle: handle.parse().map_err(|_| anyhow::anyhow!("invalid handle"))?,
-            email: None,
-            email_confirmed: None,
-            email_auth_factor: None,
-            active: Some(true),
-            did_doc: None,
-            status: None,
-        };
-        let session = Object {
-            data: session_data,
-            extra_data: Ipld::Null,
-        };
-        self.agent.resume_session(session).await?;
+        self.agent.login(&handle, &password).await?;
         Ok(())
     }
 
-    pub async fn did(&self) -> Option<String> {
-        self.agent.did().await.map(|d| d.to_string())
+    pub async fn spinupagain() -> anyhow::Result<Self> {
+        let start_with_this = dirs::config_dir()
+            .expect("Couldn't start the first step of logging in")
+            .join("bskycli/config.json");
+
+        let some_bs = FileStore::new(&start_with_this);
+
+        let config: Config = match Config::load(&some_bs).await {
+            Ok(c) => c,
+            Err(_) => Config::default(),
+        };
+
+        // WARN: Don't assume a session exists
+        let maybe_handle = config.session.as_ref().map(|s| s.handle.to_string());
+
+        // WARN: Don't assume an agent can be built from stored config
+
+        let agent = match BskyAgent::builder().config(config).build().await {
+            Ok(a) => a,
+            Err(e) => {
+                eprintln!("Bsky has invalidated the prior session: {}", e);
+                BskyAgent::builder().build().await?
+            }
+        };
+
+        // WARN: New agent, new tokens
+        let wrapper = AgentWrapper { agent };
+        if let Some(what_we_got_from) = maybe_handle {
+            let _ = wrapper.many_sessions(what_we_got_from).await;
+        }
+        Ok(wrapper)
     }
 
     pub async fn get_timeline(
@@ -75,14 +68,28 @@ impl BlueskyClient {
             cursor,
             limit: limit.and_then(|l| l.try_into().ok()),
         };
-        let output = self
+
+        let output = match self
             .agent
             .api
             .app
             .bsky
             .feed
-            .get_timeline(params.into())
-            .await?;
+            .get_timeline(params.clone().into())
+            .await
+        {
+            Ok(o) => o,
+            Err(_) => {
+                self.agent.api.com.atproto.server.refresh_session().await?;
+                self.agent
+                    .api
+                    .app
+                    .bsky
+                    .feed
+                    .get_timeline(params.into())
+                    .await?
+            }
+        };
 
         let posts: Vec<PostViewModel> = output
             .feed
@@ -105,7 +112,7 @@ impl BlueskyClient {
             .app
             .bsky
             .feed
-            .get_post_thread(params.into())
+            .get_post_thread(params.clone().into())
             .await?;
 
         use atrium_api::app::bsky::feed::get_post_thread::OutputThreadRefs;
@@ -119,11 +126,7 @@ impl BlueskyClient {
         }
     }
 
-    pub async fn create_post(
-        &self,
-        text: String,
-        reply_to: Option<ReplyRef>,
-    ) -> Result<String> {
+    pub async fn create_post(&self, text: String, reply_to: Option<ReplyRef>) -> Result<String> {
         let facets = {
             let rt = bsky_sdk::rich_text::RichText::new_with_detect_facets(&text).await?;
             rt.facets
@@ -157,7 +160,8 @@ impl BlueskyClient {
             text,
         };
 
-        let result = self.agent.create_record(record).await?;
+        let result = self.agent.create_record(record.clone()).await?;
+
         Ok(result.uri.to_string())
     }
 
@@ -172,15 +176,13 @@ impl BlueskyClient {
             via: None,
         };
 
-        let result = self.agent.create_record(record).await?;
+        let result = self.agent.create_record(record.clone()).await?;
+
         Ok(result.uri.to_string())
     }
 
-    pub async fn unlike(&self, like_uri: &str) -> Result<()> {
-        self.agent
-            .delete_record(like_uri)
-            .await?;
-        Ok(())
+    pub async fn unlike(&self, like_uri: &str) -> Result<Object<OutputData>> {
+        self.agent.delete_record(like_uri).await
     }
 
     pub async fn repost(&self, uri: &str, cid: &str) -> Result<String> {
@@ -194,15 +196,12 @@ impl BlueskyClient {
             via: None,
         };
 
-        let result = self.agent.create_record(record).await?;
+        let result = self.agent.create_record(record.clone()).await?;
         Ok(result.uri.to_string())
     }
 
-    pub async fn unrepost(&self, repost_uri: &str) -> Result<()> {
-        self.agent
-            .delete_record(repost_uri)
-            .await?;
-        Ok(())
+    pub async fn unrepost(&self, repost_uri: &str) -> Result<Object<OutputData>> {
+        self.agent.delete_record(repost_uri).await
     }
 
     pub async fn get_profile(&self, actor: &str) -> Result<ProfileViewModel> {
@@ -215,7 +214,7 @@ impl BlueskyClient {
             .app
             .bsky
             .actor
-            .get_profile(params.into())
+            .get_profile(params.clone().into())
             .await?;
 
         Ok(ProfileViewModel::from_detailed(&output))
@@ -226,11 +225,16 @@ impl BlueskyClient {
         actor: &str,
         cursor: Option<String>,
     ) -> Result<(Vec<PostViewModel>, Option<String>)> {
+        let actor_str = actor.to_string();
         let params = atrium_api::app::bsky::feed::get_author_feed::ParametersData {
-            actor: actor.parse().expect("valid handle or did"),
-            cursor,
+            actor: actor_str
+                .clone()
+                .parse()
+                .expect("Couldn't recognise your login info"),
+            cursor: cursor.clone(),
             filter: None,
             include_pins: None,
+            // WARN: This is from a LimitedNonZeroU8 type in atrium
             limit: 50u8.try_into().ok(),
         };
         let output = self
@@ -239,7 +243,7 @@ impl BlueskyClient {
             .app
             .bsky
             .feed
-            .get_author_feed(params.into())
+            .get_author_feed(params.clone().into())
             .await?;
 
         let posts: Vec<PostViewModel> = output
@@ -249,10 +253,6 @@ impl BlueskyClient {
             .collect();
 
         Ok((posts, output.cursor.clone()))
-    }
-
-    pub fn agent(&self) -> &BskyAgent {
-        &self.agent
     }
 }
 

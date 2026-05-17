@@ -9,9 +9,8 @@ use tokio::task::JoinHandle;
 use tracing::error;
 
 use crate::action::Action;
-use crate::api::auth;
-use crate::api::client::{BlueskyClient, ReplyRef};
-use crate::api::session;
+use crate::api::login_form;
+use crate::api::wrapper::{AgentWrapper, ReplyRef};
 use crate::event::{self, EventHandler};
 use crate::models::feed::FeedState;
 use crate::models::profile::ProfileViewModel;
@@ -19,6 +18,7 @@ use crate::models::thread::ThreadViewModel;
 use crate::tui::Tui;
 use crate::ui::Component;
 use crate::ui::composer::Composer;
+use crate::ui::Dialog;
 use crate::ui::login::LoginForm;
 use crate::utils::meta::ImageLibrary;
 use ratatui_image::protocol::StatefulProtocol;
@@ -42,7 +42,7 @@ pub struct App {
     screen: Screen,
     screen_stack: Vec<Screen>,
     active_tab: usize,
-    client: Arc<BlueskyClient>,
+    client: Arc<AgentWrapper>,
     action_tx: mpsc::UnboundedSender<Action>,
     action_rx: mpsc::UnboundedReceiver<Action>,
     handle: Option<String>,
@@ -61,19 +61,15 @@ pub struct App {
     login_form: LoginForm,
     composer: Composer,
     show_composer: bool,
+    logout_confirmation: Option<Dialog>,
 
     image_library: ImageLibrary,
     image_protocols: HashMap<String, ImageState>,
 }
 
 impl App {
-    pub fn new(
-        handle: Option<String>,
-        _prefer_app_password: bool,
-        client: Arc<BlueskyClient>,
-    ) -> Self {
+    pub fn new(client: Arc<AgentWrapper>) -> Self {
         let (action_tx, action_rx) = mpsc::unbounded_channel();
-        let default_handle = handle.clone().or_else(|| session::get_last_handle());
 
         App {
             should_quit: false,
@@ -83,31 +79,38 @@ impl App {
             client,
             action_tx,
             action_rx,
-            handle: handle.clone(),
+            handle: None,
             timeline: FeedState::new(),
             thread: None,
             profile: None,
             profile_feed: FeedState::new(),
             error_message: None,
             active_load: None,
-            login_form: LoginForm::new(default_handle),
+            login_form: LoginForm::new(None),
             composer: Composer::new(),
             show_composer: false,
+            logout_confirmation: None,
             image_library: ImageLibrary::new(),
             image_protocols: std::collections::HashMap::new(),
         }
     }
 
     pub async fn run(&mut self, terminal: &mut Tui) -> Result<()> {
-        // Try to restore session
-        match auth::try_restore_session(&self.client).await {
-            auth::AuthResult::Success(handle) => {
+        if let Some(did) = self.client.agent.did().await {
+            if self
+                .client
+                .agent
+                .api
+                .com
+                .atproto
+                .server
+                .refresh_session()
+                .await
+                .is_ok()
+            {
+                self.handle = Some(did.to_string());
                 self.screen = Screen::Timeline;
-                self.handle = Some(handle);
                 self.dispatch(Action::RefreshTimeline);
-            }
-            auth::AuthResult::NeedsLogin => {
-                self.screen = Screen::Login;
             }
         }
 
@@ -146,6 +149,13 @@ impl App {
 
                 if self.screen == Screen::Login {
                     if let Some(action) = self.login_form.handle_key_event(key) {
+                        self.dispatch(action);
+                    }
+                    return;
+                }
+
+                if let Some(ref mut dialog) = self.logout_confirmation {
+                    if let Some(action) = dialog.handle_key_event(key) {
                         self.dispatch(action);
                     }
                     return;
@@ -248,13 +258,17 @@ impl App {
                     if let Ok(data) = std::fs::read(&path) {
                         if let Ok(dyn_img) = image::load_from_memory(&data) {
                             let mut picker = ratatui_image::picker::Picker::from_query_stdio();
-                            picker.as_mut()
+                            picker
+                                .as_mut()
                                 .expect("REASON")
                                 .set_protocol_type(ratatui_image::picker::ProtocolType::Kitty);
                             let font_size = picker.as_mut().expect("REASON").font_size();
                             let cols = (dyn_img.width() / font_size.0 as u32).max(1) as u16;
                             let rows = (dyn_img.height() / font_size.1 as u32).max(1) as u16;
-                            let protocol = picker.as_mut().expect("REASON").new_resize_protocol(dyn_img);
+                            let protocol = picker
+                                .as_mut()
+                                .expect("REASON")
+                                .new_resize_protocol(dyn_img);
                             let _ = tx.send(Action::ImageLoaded {
                                 post_uri,
                                 protocol,
@@ -284,7 +298,7 @@ impl App {
                 let client = self.client.clone();
                 let tx = self.action_tx.clone();
                 tokio::spawn(async move {
-                    match auth::login_with_app_password(&client, &handle, &password).await {
+                    match login_form::login(&client, &handle, &password).await {
                         Ok(h) => {
                             let _ = tx.send(Action::LoginSuccess(h));
                         }
@@ -307,10 +321,26 @@ impl App {
             }
 
             Action::Logout => {
-                let _ = auth::logout();
+                let _ = login_form::logout(&self.client);
                 self.handle = None;
                 self.screen = Screen::Login;
                 self.timeline = FeedState::new();
+            }
+
+            Action::LogoutConfirm => {
+                self.logout_confirmation = Some(Dialog::new("Press Enter to logout or Esc to cancel."));
+            }
+
+            Action::DefinitelyLogout => {
+                let _ = login_form::logout(&self.client);
+                self.handle = None;
+                self.screen = Screen::Login;
+                self.timeline = FeedState::new();
+                self.logout_confirmation = None;
+            }
+
+            Action::LogoutCancelled => {
+                self.logout_confirmation = None;
             }
 
             Action::RefreshTimeline => {
@@ -745,11 +775,7 @@ impl App {
                 self.login_form.draw(frame, chunks[1]);
             }
             Screen::Timeline => {
-                crate::ui::timeline::draw_timeline(
-                    frame,
-                    chunks[1],
-                    &self.timeline,
-                );
+                crate::ui::timeline::draw_timeline(frame, chunks[1], &self.timeline);
             }
             Screen::Thread => {
                 crate::ui::thread::draw_thread(
@@ -781,6 +807,11 @@ impl App {
         // Composer overlay
         if self.show_composer {
             self.composer.draw(frame, area);
+        }
+
+        // Confirm dialog overlay
+        if let Some(ref dialog) = self.logout_confirmation {
+            dialog.draw(frame, area);
         }
     }
 }

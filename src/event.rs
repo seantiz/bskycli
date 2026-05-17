@@ -52,6 +52,7 @@ pub fn key_to_action(key: KeyEvent, in_composer: bool, in_login: bool) -> Option
                 reply_to_author: None,
             })
         }
+        (KeyModifiers::CONTROL, KeyCode::Char('l')) => Some(Action::LogoutConfirm),
         (KeyModifiers::NONE, KeyCode::Char('l')) => Some(Action::ToggleLike),
         (KeyModifiers::NONE, KeyCode::Char('t')) => Some(Action::ToggleRepost),
         (KeyModifiers::NONE, KeyCode::Char('u')) => Some(Action::ViewAuthorProfile),

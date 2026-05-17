@@ -1,15 +1,15 @@
-use crate::api::client::ReplyRef;
+use crate::api::wrapper::ReplyRef;
 use crate::models::post::PostViewModel;
 use crate::models::profile::ProfileViewModel;
 use crate::models::thread::ThreadViewModel;
 use ratatui_image::protocol::StatefulProtocol;
+
 
 pub enum Action {
     Quit,
     Tick,
     Render,
 
-    // Navigation
     SelectNext,
     SelectPrev,
     ScrollToTop,
@@ -19,7 +19,6 @@ pub enum Action {
     SwitchTab(usize),
     ViewAuthorProfile,
 
-    // Auth
     ShowLogin,
     SubmitLogin {
         handle: String,
@@ -28,8 +27,10 @@ pub enum Action {
     LoginSuccess(String),
     LoginFailed(String),
     Logout,
+    LogoutConfirm,
+    DefinitelyLogout,
+    LogoutCancelled,
 
-    // Timeline
     RefreshTimeline,
     LoadMoreTimeline,
     TimelineLoaded {
@@ -38,10 +39,8 @@ pub enum Action {
         append: bool,
     },
 
-    // Thread
     ThreadLoaded(Box<Option<ThreadViewModel>>),
 
-    // Composer
     OpenComposer {
         reply_to: Option<ReplyRef>,
         reply_to_author: Option<String>,
@@ -53,7 +52,6 @@ pub enum Action {
     },
     PostCreated(String),
 
-    // Interactions
     ToggleLike,
     LikeSuccess {
         post_uri: String,
@@ -71,7 +69,6 @@ pub enum Action {
         post_uri: String,
     },
 
-    // Profile
     LoadProfile(String),
     ProfileLoaded {
         profile: ProfileViewModel,
@@ -79,11 +76,9 @@ pub enum Action {
         cursor: Option<String>,
     },
 
-    // Errors
     Error(String),
     ClearError,
 
-    // Images
     ImageLoaded {
     post_uri: String,
     protocol: StatefulProtocol,
