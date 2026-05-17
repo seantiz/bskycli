@@ -3,7 +3,7 @@ I needed Bluesky from the terminal so I spun this one off `skyscraper-cli`.
 
 NOTE: This program is me hacking around the lexicon schema and endpoints of the AT Protocol, so this isn't a stable bsky client. It does the job and is secure, but that's about all it can say for itself right now.
 
-I also stripped out `clap` parsing, so if you want a cli that's more aligned with Unix standards I'd downloaded the original `skyscraper` cli instead.
+I also stripped out `clap` parsing, so if you want a cli that's more aligned with Unix standards I'd choose to download the original `skyscraper` cli.
 
 ## Installation
 You can only build this from source right now. Git clone it, make sure you have `cargo` installed and run it at project root to build or install.
