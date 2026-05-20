@@ -39,6 +39,7 @@ pub fn key_to_action(key: KeyEvent, in_composer: bool, in_login: bool) -> Option
         (KeyModifiers::NONE, KeyCode::Char('k')) | (KeyModifiers::NONE, KeyCode::Up) => {
             Some(Action::SelectPrev)
         }
+        (KeyModifiers::NONE, KeyCode::Char(' ')) => Some(Action::TogglePreferences),
         (KeyModifiers::NONE, KeyCode::Enter) => Some(Action::OpenThread),
         (KeyModifiers::NONE, KeyCode::Char(',')) => Some(Action::GoBack),
         (KeyModifiers::NONE, KeyCode::Char('n')) => Some(Action::OpenComposer {
@@ -61,6 +62,7 @@ pub fn key_to_action(key: KeyEvent, in_composer: bool, in_login: bool) -> Option
         (KeyModifiers::SHIFT, KeyCode::Char('G')) => Some(Action::ScrollToBottom),
         (KeyModifiers::NONE, KeyCode::Char('1')) => Some(Action::SwitchTab(0)),
         (KeyModifiers::NONE, KeyCode::Char('2')) => Some(Action::SwitchTab(1)),
+        (KeyModifiers::NONE, KeyCode::Char('3')) => Some(Action::SwitchTab(2)),
         _ => None,
     }
 }
