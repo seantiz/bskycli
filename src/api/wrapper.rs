@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use atrium_api::com::atproto::repo::delete_record::OutputData;
 use atrium_api::types::Object;
 use atrium_api::types::string::Datetime;
@@ -17,44 +19,54 @@ pub struct AgentWrapper {
 }
 
 impl AgentWrapper {
-    pub async fn many_sessions(&self, handle: String) -> anyhow::Result<()> {
+    pub async fn many_sessions(&self, from_config: PathBuf, handle: String) -> anyhow::Result<()> {
         let next_time = Entry::new("bskycli", "user")?;
         let password = next_time.get_password()?;
 
         self.agent.login(&handle, &password).await?;
+        self.agent.to_config()
+            .await.
+            save(&FileStore::new(from_config)).await?;
         Ok(())
     }
 
     pub async fn spinupagain() -> anyhow::Result<Self> {
-        let start_with_this = dirs::config_dir()
-            .expect("Couldn't start the first step of logging in")
+        let startup = dirs::config_dir()
+            .expect("Couldn't find app support folder")
             .join("bskycli/config.json");
 
-        let some_bs = FileStore::new(&start_with_this);
+        // NOTE: Memory Session Store will steer to the right endpoint
+        let mss = FileStore::new(&startup);
 
-        let config: Config = match Config::load(&some_bs).await {
-            Ok(c) => c,
-            Err(_) => Config::default(),
-        };
+        let config = Config::load(&mss).await.unwrap_or_default();
 
-        // WARN: Don't assume a session exists
+        // Don't assume a session exists
         let maybe_handle = config.session.as_ref().map(|s| s.handle.to_string());
 
-        // WARN: Don't assume an agent can be built from stored config
+        // Endpoint is not always needed - may be a cleaner way
+        let maybe_new = config.endpoint.clone();
 
-        let agent = match BskyAgent::builder().config(config).build().await {
-            Ok(a) => a,
-            Err(e) => {
-                eprintln!("Bsky has invalidated the prior session: {}", e);
-                BskyAgent::builder().build().await?
+        let (reborn, agent) = match BskyAgent::builder().config(config).build().await {
+            Ok(a) => (false, a),
+            Err(_) => {
+                eprintln!("ATP server has invalidated the prior session");
+                let new_session = Config {
+                    endpoint: maybe_new,
+                    session: None,
+                    ..Default::default()
+                };
+                (true, BskyAgent::builder().config(new_session).build().await?)
+
             }
         };
 
-        // WARN: New agent, new tokens
         let wrapper = AgentWrapper { agent };
-        if let Some(what_we_got_from) = maybe_handle {
-            let _ = wrapper.many_sessions(what_we_got_from).await;
+
+        if reborn {
+            wrapper.many_sessions(startup, maybe_handle.expect("No username provided from local config")).await?;
         }
+
+
         Ok(wrapper)
     }
 
