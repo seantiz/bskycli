@@ -9,6 +9,7 @@ use bsky_sdk::BskyAgent;
 use bsky_sdk::agent::config::{Config, FileStore};
 
 use crate::models::post::PostViewModel;
+use crate::models::preferences::PreferencesViewModel;
 use crate::models::profile::ProfileViewModel;
 use crate::models::thread::ThreadViewModel;
 
@@ -74,6 +75,7 @@ impl AgentWrapper {
         &self,
         cursor: Option<String>,
         limit: Option<u8>,
+        preferences: PreferencesViewModel,
     ) -> Result<(Vec<PostViewModel>, Option<String>)> {
         let params = atrium_api::app::bsky::feed::get_timeline::ParametersData {
             algorithm: None,
@@ -107,6 +109,7 @@ impl AgentWrapper {
             .feed
             .iter()
             .filter_map(PostViewModel::from_feed_view_post)
+            .filter(|p| p.will_i_survive(&preferences))
             .collect();
 
         Ok((posts, output.cursor.clone()))
