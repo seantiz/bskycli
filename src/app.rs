@@ -13,6 +13,7 @@ use crate::api::login_form;
 use crate::api::wrapper::{AgentWrapper, ReplyRef};
 use crate::event::{self, EventHandler};
 use crate::models::feed::FeedState;
+use crate::models::preferences::PreferencesViewModel;
 use crate::models::profile::ProfileViewModel;
 use crate::models::thread::ThreadViewModel;
 use crate::tui::Tui;
@@ -35,6 +36,7 @@ pub enum Screen {
     Timeline,
     Thread,
     Profile,
+    Preferences,
 }
 
 pub struct App {
@@ -52,6 +54,8 @@ pub struct App {
     thread: Option<ThreadViewModel>,
     profile: Option<ProfileViewModel>,
     profile_feed: FeedState,
+    preferences: PreferencesViewModel,
+    preferences_selected_index: usize,
     error_message: Option<String>,
 
     // Active data-loading task (aborted when a new load starts or on navigation)
@@ -84,6 +88,8 @@ impl App {
             thread: None,
             profile: None,
             profile_feed: FeedState::new(),
+            preferences: PreferencesViewModel::load(),
+            preferences_selected_index: 1,
             error_message: None,
             active_load: None,
             login_form: LoginForm::new(None),
@@ -328,7 +334,8 @@ impl App {
             }
 
             Action::LogoutConfirm => {
-                self.logout_confirmation = Some(Dialog::new("Press Enter to logout or Esc to cancel."));
+                self.logout_confirmation =
+                    Some(Dialog::new("Press Enter to logout or Esc to cancel."));
             }
 
             Action::DefinitelyLogout => {
@@ -347,8 +354,9 @@ impl App {
                 self.timeline.loading = true;
                 let client = self.client.clone();
                 let tx = self.action_tx.clone();
+                let preferences = self.preferences.clone();
                 self.spawn_load(async move {
-                    match client.get_timeline(None, Some(50u8)).await {
+                    match client.get_timeline(None, Some(50u8), preferences).await {
                         Ok((posts, cursor)) => {
                             let _ = tx.send(Action::TimelineLoaded {
                                 posts,
@@ -371,8 +379,9 @@ impl App {
                 let client = self.client.clone();
                 let cursor = self.timeline.cursor.clone();
                 let tx = self.action_tx.clone();
+                let preferences = self.preferences.clone();
                 self.spawn_load(async move {
-                    match client.get_timeline(cursor, Some(50u8)).await {
+                    match client.get_timeline(cursor, Some(50u8), preferences).await {
                         Ok((posts, cursor)) => {
                             let _ = tx.send(Action::TimelineLoaded {
                                 posts,
@@ -412,6 +421,10 @@ impl App {
                 Screen::Thread => {
                     // Thread navigation is handled at draw level
                 }
+                Screen::Preferences => {
+                    // NOTE: Off by one for ui padding
+                    self.preferences_selected_index = (self.preferences_selected_index + 1).min(4);
+                }
                 _ => {}
             },
 
@@ -421,6 +434,11 @@ impl App {
                 }
                 Screen::Profile => {
                     self.profile_feed.select_prev();
+                }
+                Screen::Preferences => {
+                    // NOTE: Off by one for ui padding
+                    self.preferences_selected_index =
+                        self.preferences_selected_index.saturating_sub(1).max(1);
                 }
                 _ => {}
             },
@@ -488,6 +506,9 @@ impl App {
                         if let Some(handle) = self.handle.clone() {
                             self.dispatch(Action::LoadProfile(handle));
                         }
+                    }
+                    2 => {
+                        self.screen = Screen::Preferences;
                     }
                     _ => {}
                 }
@@ -697,6 +718,26 @@ impl App {
                 self.profile_feed.replace_posts(posts, cursor);
             }
 
+            Action::SavePreferences(prefs) => {
+                if let Err(e) = prefs.save() {
+                    error!("Something went wrong: {}", e);
+                } else {
+                    self.preferences = prefs;
+                    self.dispatch(Action::RefreshTimeline);
+                }
+            }
+
+            Action::TogglePreferences => match self.preferences_selected_index {
+                0 => self.preferences.hide_replies = !self.preferences.hide_replies,
+                1 => {
+                    self.preferences.hide_replies_by_unfollowed =
+                        !self.preferences.hide_replies_by_unfollowed
+                }
+                2 => self.preferences.hide_reposts = !self.preferences.hide_reposts,
+                3 => self.preferences.hide_quote_posts = !self.preferences.hide_quote_posts,
+                _ => {}
+            },
+
             Action::Error(msg) => {
                 error!("Error: {}", msg);
                 self.error_message = Some(msg);
@@ -791,6 +832,14 @@ impl App {
                     chunks[1],
                     self.profile.as_ref(),
                     &self.profile_feed,
+                );
+            }
+            Screen::Preferences => {
+                crate::ui::user_prefs::draw_settings(
+                    frame,
+                    chunks[1],
+                    &self.preferences,
+                    self.preferences_selected_index,
                 );
             }
         }

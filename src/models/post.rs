@@ -1,3 +1,4 @@
+use crate::models::preferences::PreferencesViewModel;
 use chrono::{DateTime, Utc};
 
 #[derive(Debug, Clone)]
@@ -66,16 +67,15 @@ impl PostViewModel {
     pub fn from_feed_view_post(
         fvp: &atrium_api::app::bsky::feed::defs::FeedViewPost,
     ) -> Option<Self> {
-        let reply_parent_author = fvp.reply.as_ref().and_then(|r| {
-            extract_author_from_reply_parent(&r.parent)
-        });
+        let reply_parent_author = fvp
+            .reply
+            .as_ref()
+            .and_then(|r| extract_author_from_reply_parent(&r.parent));
         let reposted_by = fvp.reason.as_ref().and_then(extract_repost_reason);
         Self::from_post_view_inner(&fvp.post, reply_parent_author, reposted_by)
     }
 
-    pub fn from_post_view(
-        post: &atrium_api::app::bsky::feed::defs::PostView,
-    ) -> Option<Self> {
+    pub fn from_post_view(post: &atrium_api::app::bsky::feed::defs::PostView) -> Option<Self> {
         Self::from_post_view_inner(post, None, None)
     }
 
@@ -134,6 +134,22 @@ impl PostViewModel {
             images: Vec::new(),
         })
     }
+
+    pub fn will_i_survive(&self, prefer_to: &PreferencesViewModel) -> bool {
+        if prefer_to.hide_reposts && self.reposted_by.is_some() {
+            return false;
+        }
+        if prefer_to.hide_replies && self.reply_parent_author.is_some() {
+            return false;
+        }
+        if prefer_to.hide_quote_posts && matches!( 
+            self.embed_summary.as_ref().map(|emb| &emb.kind),
+                Some(EmbedKind::Record)) {
+            return false;
+        }
+
+        true
+    }
 }
 
 fn parse_facets_from_record(record: &serde_json::Value) -> Vec<Facet> {
@@ -174,99 +190,84 @@ fn parse_facets_from_record(record: &serde_json::Value) -> Vec<Facet> {
 }
 
 fn extract_embed_summary(
-    embed: &atrium_api::types::Union<
-        atrium_api::app::bsky::feed::defs::PostViewEmbedRefs,
-    >,
+    embed: &atrium_api::types::Union<atrium_api::app::bsky::feed::defs::PostViewEmbedRefs>,
 ) -> Option<EmbedSummary> {
     use atrium_api::app::bsky::feed::defs::PostViewEmbedRefs;
     use atrium_api::types::Union;
 
     match embed {
-        Union::Refs(PostViewEmbedRefs::AppBskyEmbedExternalView(ext)) => {
-            Some(EmbedSummary {
-                kind: EmbedKind::ExternalLink,
-                title: Some(ext.external.title.clone()),
-                description: Some(ext.external.description.clone()),
-                url: Some(ext.external.uri.clone()),
-            })
-        }
-        Union::Refs(PostViewEmbedRefs::AppBskyEmbedImagesView(imgs)) => {
-            Some(EmbedSummary {
-                kind: EmbedKind::Images(imgs.images.iter().map(|i| ImageMeta {
-                    size: i.fullsize.clone(),
-                    alt: Some(i.alt.clone()),
-                }).collect()),
-                title: None,
-                description: None,
-                url: None,
-            })
-        }
-        Union::Refs(PostViewEmbedRefs::AppBskyEmbedVideoView(_)) => {
-            Some(EmbedSummary {
-                kind: EmbedKind::Video,
-                title: None,
-                description: None,
-                url: None,
-            })
-        }
-        Union::Refs(PostViewEmbedRefs::AppBskyEmbedRecordView(_)) => {
-            Some(EmbedSummary {
-                kind: EmbedKind::Record,
-                title: None,
-                description: Some("Quoted post".to_string()),
-                url: None,
-            })
-        }
-        Union::Refs(PostViewEmbedRefs::AppBskyEmbedRecordWithMediaView(_)) => {
-            Some(EmbedSummary {
-                kind: EmbedKind::RecordWithMedia,
-                title: None,
-                description: Some("Quote with media".to_string()),
-                url: None,
-            })
-        }
+        Union::Refs(PostViewEmbedRefs::AppBskyEmbedExternalView(ext)) => Some(EmbedSummary {
+            kind: EmbedKind::ExternalLink,
+            title: Some(ext.external.title.clone()),
+            description: Some(ext.external.description.clone()),
+            url: Some(ext.external.uri.clone()),
+        }),
+        Union::Refs(PostViewEmbedRefs::AppBskyEmbedImagesView(imgs)) => Some(EmbedSummary {
+            kind: EmbedKind::Images(
+                imgs.images
+                    .iter()
+                    .map(|i| ImageMeta {
+                        size: i.fullsize.clone(),
+                        alt: Some(i.alt.clone()),
+                    })
+                    .collect(),
+            ),
+            title: None,
+            description: None,
+            url: None,
+        }),
+        Union::Refs(PostViewEmbedRefs::AppBskyEmbedVideoView(_)) => Some(EmbedSummary {
+            kind: EmbedKind::Video,
+            title: None,
+            description: None,
+            url: None,
+        }),
+        Union::Refs(PostViewEmbedRefs::AppBskyEmbedRecordView(_)) => Some(EmbedSummary {
+            kind: EmbedKind::Record,
+            title: None,
+            description: Some("Quoted post".to_string()),
+            url: None,
+        }),
+        Union::Refs(PostViewEmbedRefs::AppBskyEmbedRecordWithMediaView(_)) => Some(EmbedSummary {
+            kind: EmbedKind::RecordWithMedia,
+            title: None,
+            description: Some("Quote with media".to_string()),
+            url: None,
+        }),
         _ => None,
     }
 }
 
 fn extract_author_from_reply_parent(
-    parent: &atrium_api::types::Union<
-        atrium_api::app::bsky::feed::defs::ReplyRefParentRefs,
-    >,
+    parent: &atrium_api::types::Union<atrium_api::app::bsky::feed::defs::ReplyRefParentRefs>,
 ) -> Option<String> {
     use atrium_api::app::bsky::feed::defs::ReplyRefParentRefs;
     use atrium_api::types::Union;
 
     match parent {
-        Union::Refs(ReplyRefParentRefs::PostView(pv)) => {
-            Some(
-                pv.author
-                    .display_name
-                    .clone()
-                    .unwrap_or_else(|| pv.author.handle.to_string()),
-            )
-        }
+        Union::Refs(ReplyRefParentRefs::PostView(pv)) => Some(
+            pv.author
+                .display_name
+                .clone()
+                .unwrap_or_else(|| pv.author.handle.to_string()),
+        ),
         _ => None,
     }
 }
 
 fn extract_repost_reason(
-    reason: &atrium_api::types::Union<
-        atrium_api::app::bsky::feed::defs::FeedViewPostReasonRefs,
-    >,
+    reason: &atrium_api::types::Union<atrium_api::app::bsky::feed::defs::FeedViewPostReasonRefs>,
 ) -> Option<String> {
     use atrium_api::app::bsky::feed::defs::FeedViewPostReasonRefs;
     use atrium_api::types::Union;
 
     match reason {
-        Union::Refs(FeedViewPostReasonRefs::ReasonRepost(rr)) => {
-            Some(
-                rr.by
-                    .display_name
-                    .clone()
-                    .unwrap_or_else(|| rr.by.handle.to_string()),
-            )
-        }
+        Union::Refs(FeedViewPostReasonRefs::ReasonRepost(rr)) => Some(
+            rr.by
+                .display_name
+                .clone()
+                .unwrap_or_else(|| rr.by.handle.to_string()),
+        ),
         _ => None,
     }
 }

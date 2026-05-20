@@ -1,5 +1,6 @@
 use crate::api::wrapper::ReplyRef;
 use crate::models::post::PostViewModel;
+use crate::models::preferences::PreferencesViewModel;
 use crate::models::profile::ProfileViewModel;
 use crate::models::thread::ThreadViewModel;
 use ratatui_image::protocol::StatefulProtocol;
@@ -85,6 +86,10 @@ pub enum Action {
     cols: u16,
     rows: u16,
 },
+
+    OpenPreferences,
+    SavePreferences(PreferencesViewModel),
+    TogglePreferences,
 }
 
 

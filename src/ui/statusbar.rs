@@ -29,6 +29,7 @@ pub fn draw_statusbar(
                 "r: reply | l: like | t: repost | u: profile"
             }
             Screen::Profile => {""}
+            Screen::Preferences => {""},
         }
     };
 

@@ -9,6 +9,7 @@ pub mod statusbar;
 pub mod tabs;
 pub mod thread;
 pub mod timeline;
+pub mod user_prefs;
 
 use crossterm::event::KeyEvent;
 use ratatui::Frame;
