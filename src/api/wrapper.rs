@@ -10,6 +10,7 @@ use bsky_sdk::agent::config::{Config, FileStore};
 
 use crate::models::post::PostViewModel;
 use crate::models::preferences::PreferencesViewModel;
+use crate::models::notifications::NotificationViewModel;
 use crate::models::profile::ProfileViewModel;
 use crate::models::thread::ThreadViewModel;
 
@@ -314,6 +315,37 @@ impl AgentWrapper {
             .collect();
 
         Ok((posts, output.cursor.clone()))
+    }
+
+    pub async fn get_notifications(
+        &self,
+        cursor: Option<String>,
+    ) -> Result<(Vec<NotificationViewModel>, Option<String>)> {
+        let preferences = PreferencesViewModel::load();
+        let endpoint = atrium_api::app::bsky::notification::list_notifications::ParametersData {
+            limit: 100u8.try_into().ok(),
+            reasons: preferences.enabled_notifications(),
+            cursor,
+            seen_at: None,
+            priority: None,
+        };
+
+        let output = self
+            .agent
+            .api
+            .app
+            .bsky
+            .notification
+            .list_notifications(endpoint.into())
+            .await?;
+
+        let notifications: Vec<NotificationViewModel> = output
+            .notifications
+            .iter()
+            .filter_map(NotificationViewModel::from_notification)
+            .collect();
+
+        Ok((notifications, output.cursor.clone()))
     }
 }
 
