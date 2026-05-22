@@ -63,6 +63,11 @@ pub enum EmbedKind {
     RecordWithMedia,
 }
 
+/// Build a [`PostViewModel`] from a [`FeedViewPost`](atrium_api::app::bsky::feed::defs::FeedViewPost) endpoint, for getting post metadata within the context of a rendered feed view e.g. is the post a reply, repost, etc.
+///
+/// Build a [`PostViewModel`] from a bare [`PostView`](atrium_api::app::bsky::feed::defs::PostView),
+/// where post data has no surrounding context, just the post itself, useful for collecting posts
+/// from search queries
 impl PostViewModel {
     pub fn from_feed_view_post(
         fvp: &atrium_api::app::bsky::feed::defs::FeedViewPost,
