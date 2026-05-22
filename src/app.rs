@@ -599,7 +599,6 @@ impl App {
                     }
                     3 => {
                         self.screen = Screen::Search;
-                        self.search_focused = true;
                     }
                     4 => {
                         self.screen = Screen::Notifications;
