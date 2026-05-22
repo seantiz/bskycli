@@ -63,6 +63,7 @@ pub fn key_to_action(key: KeyEvent, in_composer: bool, in_login: bool) -> Option
         (KeyModifiers::NONE, KeyCode::Char('1')) => Some(Action::SwitchTab(0)),
         (KeyModifiers::NONE, KeyCode::Char('2')) => Some(Action::SwitchTab(1)),
         (KeyModifiers::NONE, KeyCode::Char('3')) => Some(Action::SwitchTab(2)),
+        (KeyModifiers::NONE, KeyCode::Char('4')) => Some(Action::SwitchTab(3)),
         _ => None,
     }
 }
