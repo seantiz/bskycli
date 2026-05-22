@@ -17,9 +17,8 @@ use crate::models::preferences::PreferencesViewModel;
 use crate::models::profile::ProfileViewModel;
 use crate::models::thread::ThreadViewModel;
 use crate::tui::Tui;
-use crate::ui::Component;
+use crate::ui::{Component, Dialog};
 use crate::ui::composer::Composer;
-use crate::ui::Dialog;
 use crate::ui::login::LoginForm;
 use crate::utils::meta::ImageLibrary;
 use ratatui_image::protocol::StatefulProtocol;
@@ -37,6 +36,7 @@ pub enum Screen {
     Thread,
     Profile,
     Preferences,
+    Search,
 }
 
 pub struct App {
@@ -56,6 +56,9 @@ pub struct App {
     profile_feed: FeedState,
     preferences: PreferencesViewModel,
     preferences_selected_index: usize,
+    search_feed: FeedState,
+    search_query: String,
+    search_focused: bool,
     error_message: Option<String>,
 
     // Active data-loading task (aborted when a new load starts or on navigation)
@@ -90,6 +93,9 @@ impl App {
             profile_feed: FeedState::new(),
             preferences: PreferencesViewModel::load(),
             preferences_selected_index: 1,
+            search_feed: FeedState::new(),
+            search_query: String::new(),
+            search_focused: false,
             error_message: None,
             active_load: None,
             login_form: LoginForm::new(None),
@@ -167,6 +173,39 @@ impl App {
                     return;
                 }
 
+                if self.screen == Screen::Search {
+                    if self.search_focused {
+                        match key.code {
+                            KeyCode::Char(pressed) if key.modifiers == KeyModifiers::NONE => {
+                                self.search_query.push(pressed);
+                                return;
+                            }
+                            KeyCode::Backspace => {
+                                self.search_query.pop();
+                                return;
+                            }
+                            KeyCode::Enter => {
+                                let query = self.search_query.clone();
+                                if !query.is_empty() {
+                                    self.search_focused = false;
+                                    self.dispatch(Action::Search(query));
+                                }
+                                return;
+                            }
+                            KeyCode::Esc => {
+                                self.search_focused = false;
+                                return;
+                            }
+                            _ => {}
+                        }
+                    } else if matches!(key.code, KeyCode::Char('/'))
+                        && key.modifiers == KeyModifiers::NONE
+                    {
+                        self.search_focused = true;
+                        return;
+                    }
+                }
+
                 // Global key handling
                 if let Some(action) =
                     event::key_to_action(key, self.show_composer, self.screen == Screen::Login)
@@ -228,6 +267,7 @@ impl App {
         let post = match self.screen {
             Screen::Timeline => self.timeline.selected_post(),
             Screen::Profile => self.profile_feed.selected_post(),
+            Screen::Search => self.search_feed.selected_post(),
             Screen::Thread => self.thread.as_ref().map(|t| &t.focal),
             _ => None,
         };
@@ -421,6 +461,12 @@ impl App {
                 Screen::Thread => {
                     // Thread navigation is handled at draw level
                 }
+                Screen::Search => {
+                    self.search_feed.select_next();
+                    if self.search_feed.near_bottom(20) {
+                        self.dispatch(Action::LoadMoreResults);
+                    }
+                }
                 Screen::Preferences => {
                     // NOTE: Off by one for ui padding
                     self.preferences_selected_index = (self.preferences_selected_index + 1).min(4);
@@ -435,6 +481,9 @@ impl App {
                 Screen::Profile => {
                     self.profile_feed.select_prev();
                 }
+                Screen::Search => {
+                    self.search_feed.select_prev();
+                }
                 Screen::Preferences => {
                     // NOTE: Off by one for ui padding
                     self.preferences_selected_index =
@@ -446,12 +495,14 @@ impl App {
             Action::ScrollToTop => match self.screen {
                 Screen::Timeline => self.timeline.select_first(),
                 Screen::Profile => self.profile_feed.select_first(),
+                Screen::Search => self.search_feed.select_first(),
                 _ => {}
             },
 
             Action::ScrollToBottom => match self.screen {
                 Screen::Timeline => self.timeline.select_last(),
                 Screen::Profile => self.profile_feed.select_last(),
+                Screen::Search => self.search_feed.select_last(),
                 _ => {}
             },
 
@@ -459,6 +510,7 @@ impl App {
                 let uri = match self.screen {
                     Screen::Timeline => self.timeline.selected_post().map(|p| p.uri.clone()),
                     Screen::Profile => self.profile_feed.selected_post().map(|p| p.uri.clone()),
+                    Screen::Search => self.search_feed.selected_post().map(|p| p.uri.clone()),
                     _ => None,
                 };
 
@@ -509,6 +561,10 @@ impl App {
                     }
                     2 => {
                         self.screen = Screen::Preferences;
+                    }
+                    3 => {
+                        self.screen = Screen::Search;
+                        self.search_focused = true;
                     }
                     _ => {}
                 }
@@ -738,6 +794,69 @@ impl App {
                 _ => {}
             },
 
+            Action::FocusSearchInput => {
+                self.search_focused = true;
+            }
+
+            Action::Search(query) => {
+                self.search_query = query.clone();
+                self.search_feed = FeedState::new();
+                self.search_feed.loading = true;
+                let client = self.client.clone();
+                let tx = self.action_tx.clone();
+                self.spawn_load(async move {
+                    match client.search_firehose(query, None).await {
+                        Ok((posts, cursor)) => {
+                            let _ = tx.send(Action::SearchResults {
+                                posts,
+                                cursor,
+                                append: false,
+                            });
+                        }
+                        Err(e) => {
+                            let _ = tx.send(Action::Error(e.to_string()));
+                        }
+                    }
+                });
+            }
+
+            Action::LoadMoreResults => {
+                if self.search_feed.loading || self.search_feed.cursor.is_none() {
+                    return;
+                }
+                self.search_feed.loading = true;
+                let client = self.client.clone();
+                let cursor = self.search_feed.cursor.clone();
+                let query = self.search_query.clone();
+                let tx = self.action_tx.clone();
+                self.spawn_load(async move {
+                    match client.search_firehose(query, cursor).await {
+                        Ok((posts, cursor)) => {
+                            let _ = tx.send(Action::SearchResults {
+                                posts,
+                                cursor,
+                                append: true,
+                            });
+                        }
+                        Err(e) => {
+                            let _ = tx.send(Action::Error(e.to_string()));
+                        }
+                    }
+                });
+            }
+
+            Action::SearchResults {
+                posts,
+                cursor,
+                append,
+            } => {
+                if append {
+                    self.search_feed.append_posts(posts, cursor);
+                } else {
+                    self.search_feed.replace_posts(posts, cursor);
+                }
+            }
+
             Action::Error(msg) => {
                 error!("Error: {}", msg);
                 self.error_message = Some(msg);
@@ -774,6 +893,11 @@ impl App {
             }
         }
         for post in &mut self.profile_feed.posts {
+            if post.uri == uri {
+                f(post);
+            }
+        }
+        for post in &mut self.search_feed.posts {
             if post.uri == uri {
                 f(post);
             }
@@ -840,6 +964,15 @@ impl App {
                     chunks[1],
                     &self.preferences,
                     self.preferences_selected_index,
+                );
+            }
+            Screen::Search => {
+                crate::ui::search::draw_search(
+                    frame,
+                    chunks[1],
+                    &self.search_feed,
+                    &self.search_query,
+                    self.search_focused,
                 );
             }
         }
