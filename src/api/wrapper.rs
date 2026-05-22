@@ -281,13 +281,13 @@ impl AgentWrapper {
     pub async fn search_firehose(
         &self,
         search_query: String,
-        _cursor: Option<String>,
+        cursor: Option<String>,
     ) -> Result<(Vec<PostViewModel>, Option<String>)> {
         let endpoint = atrium_api::app::bsky::feed::search_posts::ParametersData {
             q: search_query,
             sort: Some("latest".to_string()),
             author: None,
-            cursor: None,
+            cursor,
             domain: None,
             lang: None,
             limit: None,
