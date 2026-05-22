@@ -2,7 +2,7 @@ use ratatui::prelude::*;
 use ratatui::widgets::{Block, Borders, Tabs as RatatuiTabs};
 
 pub fn draw_tabs(frame: &mut Frame, area: Rect, active: usize) {
-    let titles = vec!["[1] Timeline", "[2] Profile", "[3] Preferences [4] Search"];
+    let titles = vec!["[1] Timeline", "[2] Profile", "[3] Preferences", "[4] Search"];
     let tabs = RatatuiTabs::new(titles)
         .block(
             Block::default()
