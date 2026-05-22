@@ -3,7 +3,7 @@ What's different's about this one compared to all the other Bluesky clients? Not
 
 The wider issue is the AT Protocol and Bluesky libraries are still likely to be subject to change over the next year or so. In that spirit, this app is a product of me hacking around the ATP endpoints and just seeing what works and what I could get away with doing. 
 
-**As of version 0.4.0** this app does the job and is secure. I think it makes for a full Bluesky experience. Feel free to get in touch if something is lacking.
+**As of version 0.4.4** this app does the job and is secure. I think it makes for a full Bluesky experience. Feel free to get in touch if something is lacking.
 
 ## Features in Brief
 All the essentials you'd expect from social media:
