@@ -5,11 +5,11 @@ use ratatui::layout::{Constraint, Direction, Layout, Position, Rect};
 use ratatui::style::Style;
 use ratatui::widgets::Paragraph;
 
-pub fn draw_search(frame: &mut Frame, feed: &FeedState, query: &str, focused: bool) {
+pub fn draw_search(frame: &mut Frame, area: Rect, feed: &FeedState, query: &str, focused: bool) {
     let container = Layout::default()
         .direction(Direction::Vertical)
         .constraints([Constraint::Length(1), Constraint::Min(1)])
-        .split(frame.area());
+        .split(area);
 
     let search_bar = Paragraph::new(format!("Search: {}", query)).style(Style::default().cyan());
     frame.render_widget(search_bar, container[0]);
