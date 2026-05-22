@@ -37,6 +37,7 @@ pub enum Screen {
     Profile,
     Preferences,
     Search,
+    Notifications,
 }
 
 pub struct App {
@@ -59,6 +60,11 @@ pub struct App {
     search_feed: FeedState,
     search_query: String,
     search_focused: bool,
+    notifications: Vec<crate::models::notifications::NotificationViewModel>,
+    notifications_cursor: Option<String>,
+    notifications_loading: bool,
+    // NOTE: Purely for notifications
+    scrolled_past: usize,
     error_message: Option<String>,
 
     // Active data-loading task (aborted when a new load starts or on navigation)
@@ -96,6 +102,10 @@ impl App {
             search_feed: FeedState::new(),
             search_query: String::new(),
             search_focused: false,
+            notifications: Vec::new(),
+            notifications_cursor: None,
+            notifications_loading: false,
+            scrolled_past: 0,
             error_message: None,
             active_load: None,
             login_form: LoginForm::new(None),
@@ -467,9 +477,21 @@ impl App {
                         self.dispatch(Action::LoadMoreResults);
                     }
                 }
+                Screen::Notifications => {
+                    if !self.notifications.is_empty()
+                        && self.scrolled_past < self.notifications.len() - 1
+                    {
+                        self.scrolled_past += 1;
+                    }
+                    if self.scrolled_past + 3 >= self.notifications.len()
+                        && self.notifications_cursor.is_some()
+                    {
+                        self.dispatch(Action::LoadMoreNotifications);
+                    }
+                }
                 Screen::Preferences => {
                     // NOTE: Off by one for ui padding
-                    self.preferences_selected_index = (self.preferences_selected_index + 1).min(4);
+                    self.preferences_selected_index = (self.preferences_selected_index + 1).min(11);
                 }
                 _ => {}
             },
@@ -484,6 +506,11 @@ impl App {
                 Screen::Search => {
                     self.search_feed.select_prev();
                 }
+                Screen::Notifications => {
+                    if self.scrolled_past > 0 {
+                        self.scrolled_past -= 1;
+                    }
+                }
                 Screen::Preferences => {
                     // NOTE: Off by one for ui padding
                     self.preferences_selected_index =
@@ -496,6 +523,7 @@ impl App {
                 Screen::Timeline => self.timeline.select_first(),
                 Screen::Profile => self.profile_feed.select_first(),
                 Screen::Search => self.search_feed.select_first(),
+                Screen::Notifications => self.scrolled_past = 0,
                 _ => {}
             },
 
@@ -503,6 +531,11 @@ impl App {
                 Screen::Timeline => self.timeline.select_last(),
                 Screen::Profile => self.profile_feed.select_last(),
                 Screen::Search => self.search_feed.select_last(),
+                Screen::Notifications => {
+                    if !self.notifications.is_empty() {
+                        self.scrolled_past = self.notifications.len() - 1;
+                    }
+                }
                 _ => {}
             },
 
@@ -511,6 +544,10 @@ impl App {
                     Screen::Timeline => self.timeline.selected_post().map(|p| p.uri.clone()),
                     Screen::Profile => self.profile_feed.selected_post().map(|p| p.uri.clone()),
                     Screen::Search => self.search_feed.selected_post().map(|p| p.uri.clone()),
+                    Screen::Notifications => self
+                        .notifications
+                        .get(self.scrolled_past)
+                        .and_then(|n| n.subject.clone()),
                     _ => None,
                 };
 
@@ -550,9 +587,7 @@ impl App {
                 match idx {
                     0 => {
                         self.screen = Screen::Timeline;
-                        if self.timeline.posts.is_empty() {
-                            self.dispatch(Action::RefreshTimeline);
-                        }
+                        self.dispatch(Action::RefreshTimeline);
                     }
                     1 => {
                         if let Some(handle) = self.handle.clone() {
@@ -564,7 +599,12 @@ impl App {
                     }
                     3 => {
                         self.screen = Screen::Search;
-                        self.search_focused = true;
+                    }
+                    4 => {
+                        self.screen = Screen::Notifications;
+                        if self.notifications.is_empty() {
+                            self.dispatch(Action::RefreshNotifications);
+                        }
                     }
                     _ => {}
                 }
@@ -783,15 +823,30 @@ impl App {
                 }
             }
 
-            Action::TogglePreferences => match self.preferences_selected_index {
-                0 => self.preferences.hide_replies = !self.preferences.hide_replies,
-                1 => {
-                    self.preferences.hide_replies_by_unfollowed =
-                        !self.preferences.hide_replies_by_unfollowed
+            Action::TogglePreferences => {
+                match self.preferences_selected_index {
+                    1 => self.preferences.hide_replies = !self.preferences.hide_replies,
+                    2 => {
+                        self.preferences.hide_replies_by_unfollowed =
+                            !self.preferences.hide_replies_by_unfollowed
+                    }
+                    3 => self.preferences.hide_reposts = !self.preferences.hide_reposts,
+                    4 => self.preferences.hide_quote_posts = !self.preferences.hide_quote_posts,
+                    5 => self.preferences.notify_likes = !self.preferences.notify_likes,
+                    6 => self.preferences.notify_reposts = !self.preferences.notify_reposts,
+                    7 => self.preferences.notify_follows = !self.preferences.notify_follows,
+                    8 => self.preferences.notify_mentions = !self.preferences.notify_mentions,
+                    9 => self.preferences.notify_replies = !self.preferences.notify_replies,
+                    10 => self.preferences.notify_quotes = !self.preferences.notify_quotes,
+                    11 => {
+                        self.preferences.notify_starterpack_joins =
+                            !self.preferences.notify_starterpack_joins
+                    }
+                    _ => {}
                 }
-                2 => self.preferences.hide_reposts = !self.preferences.hide_reposts,
-                3 => self.preferences.hide_quote_posts = !self.preferences.hide_quote_posts,
-                _ => {}
+                if let Err(e) = self.preferences.save() {
+                    error!("Failed to save preferences: {}", e);
+                }
             },
 
             Action::FocusSearchInput => {
@@ -854,6 +909,66 @@ impl App {
                     self.search_feed.append_posts(posts, cursor);
                 } else {
                     self.search_feed.replace_posts(posts, cursor);
+                }
+            }
+
+            Action::RefreshNotifications => {
+                self.notifications_loading = true;
+                let client = self.client.clone();
+                let tx = self.action_tx.clone();
+                self.spawn_load(async move {
+                    match client.get_notifications(None).await {
+                        Ok((notifications, cursor)) => {
+                            let _ = tx.send(Action::NotificationsLoaded {
+                                notifications,
+                                cursor,
+                                append: false,
+                            });
+                        }
+                        Err(e) => {
+                            let _ = tx.send(Action::Error(e.to_string()));
+                        }
+                    }
+                });
+            }
+
+            Action::LoadMoreNotifications => {
+                if self.notifications_loading || self.notifications_cursor.is_none() {
+                    return;
+                }
+                self.notifications_loading = true;
+                let client = self.client.clone();
+                let cursor = self.notifications_cursor.clone();
+                let tx = self.action_tx.clone();
+                self.spawn_load(async move {
+                    match client.get_notifications(cursor).await {
+                        Ok((notifications, cursor)) => {
+                            let _ = tx.send(Action::NotificationsLoaded {
+                                notifications,
+                                cursor,
+                                append: true,
+                            });
+                        }
+                        Err(e) => {
+                            let _ = tx.send(Action::Error(e.to_string()));
+                        }
+                    }
+                });
+            }
+
+            Action::NotificationsLoaded {
+                notifications,
+                cursor,
+                append,
+            } => {
+                self.notifications_loading = false;
+                if append {
+                    self.notifications.extend(notifications);
+                    self.notifications_cursor = cursor;
+                } else {
+                    self.notifications = notifications;
+                    self.notifications_cursor = cursor;
+                    self.scrolled_past = 0;
                 }
             }
 
@@ -973,6 +1088,15 @@ impl App {
                     &self.search_feed,
                     &self.search_query,
                     self.search_focused,
+                );
+            }
+            Screen::Notifications => {
+                crate::ui::notifications::draw_notifications(
+                    frame,
+                    chunks[1],
+                    &self.notifications,
+                    self.scrolled_past,
+                    self.notifications_loading,
                 );
             }
         }

@@ -10,6 +10,13 @@ pub fn draw_settings(frame: &mut Frame, area: Rect, preferences: &PreferencesVie
         format!("[{}] Hide replies by people you don't follow", if preferences.hide_replies_by_unfollowed { "x" } else { " " }),
         format!("[{}] Hide reposts", if preferences.hide_reposts { "x" } else { " " }),
         format!("[{}] Hide quote posts", if preferences.hide_quote_posts { "x" } else { " " }),
+        format!("[{}] Notify me when my posts are liked", if preferences.notify_likes { "x" } else { " " }),
+        format!("[{}] Notify me of reposts", if preferences.notify_reposts { "x" } else { " " }),
+        format!("[{}] Notify me when someone follows me", if preferences.notify_follows { "x" } else { " " }),
+        format!("[{}] Notify me when someone mentions me", if preferences.notify_mentions { "x" } else { " " }),
+        format!("[{}] Notify me of replies", if preferences.notify_replies { "x" } else { " " }),
+        format!("[{}] Notify me when someone quotes my post", if preferences.notify_quotes { "x" } else { " " }),
+        format!("[{}] Notify me when someone uses my starter pack", if preferences.notify_starterpack_joins { "x" } else { " " }),
     ];
 
     let mut text = Text::default();

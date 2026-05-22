@@ -8,6 +8,7 @@ use bsky_sdk::Result;
 use bsky_sdk::BskyAgent;
 use bsky_sdk::agent::config::{Config, FileStore};
 
+use crate::models::notifications::NotificationViewModel;
 use crate::models::post::PostViewModel;
 use crate::models::preferences::PreferencesViewModel;
 use crate::models::profile::ProfileViewModel;
@@ -314,6 +315,71 @@ impl AgentWrapper {
             .collect();
 
         Ok((posts, output.cursor.clone()))
+    }
+
+    pub async fn get_notifications(
+        &self,
+        cursor: Option<String>,
+    ) -> Result<(Vec<NotificationViewModel>, Option<String>)> {
+        let preferences = PreferencesViewModel::load();
+
+        let endpoint = atrium_api::app::bsky::notification::list_notifications::ParametersData {
+            limit: 100u8.try_into().ok(),
+            reasons: preferences.enabled_notifications(),
+            cursor,
+            seen_at: None,
+            priority: None,
+        };
+
+        let output = self
+            .agent
+            .api
+            .app
+            .bsky
+            .notification
+            .list_notifications(endpoint.into())
+            .await?;
+
+        let threshold = match &preferences.last_seen_at {
+            Some(s) => chrono::DateTime::parse_from_rfc3339(s)
+                .map(|dt| (dt - chrono::Duration::days(2)).with_timezone(&chrono::Utc))
+                .ok(),
+            None => Some(chrono::Utc::now() - chrono::Duration::days(2)),
+        };
+
+        let notifications: Vec<NotificationViewModel> = output
+            .notifications
+            .iter()
+            .filter_map(NotificationViewModel::from_notification)
+            .filter(|n| match threshold {
+                Some(t) => chrono::DateTime::parse_from_rfc3339(&n.indexed_at)
+                    .map(|dt| dt > t)
+                    .unwrap_or(true),
+                None => true,
+            })
+            .collect();
+
+        Ok((notifications, output.cursor.clone()))
+    }
+
+    pub async fn update_seen(&self, seen_at: Option<Datetime>) -> Result<()> {
+        let seen = seen_at.unwrap_or_else(Datetime::now);
+        let params = atrium_api::app::bsky::notification::update_seen::InputData {
+            seen_at: seen.clone(),
+        };
+        self.agent
+            .api
+            .app
+            .bsky
+            .notification
+            .update_seen(params.into())
+            .await?;
+
+        let mut prefs = PreferencesViewModel::load();
+        prefs.last_seen_at = Some(seen.as_str().to_string());
+        let _ = prefs.save();
+
+        Ok(())
     }
 }
 

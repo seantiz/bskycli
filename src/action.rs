@@ -1,4 +1,5 @@
 use crate::api::wrapper::ReplyRef;
+use crate::models::notifications::NotificationViewModel;
 use crate::models::post::PostViewModel;
 use crate::models::preferences::PreferencesViewModel;
 use crate::models::profile::ProfileViewModel;
@@ -82,6 +83,14 @@ pub enum Action {
     LoadMoreResults,
     SearchResults {
         posts: Vec<PostViewModel>,
+        cursor: Option<String>,
+        append: bool,
+    },
+
+    RefreshNotifications,
+    LoadMoreNotifications,
+    NotificationsLoaded {
+        notifications: Vec<NotificationViewModel>,
         cursor: Option<String>,
         append: bool,
     },
