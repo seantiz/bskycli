@@ -32,7 +32,7 @@ pub fn draw_search(frame: &mut Frame, area: Rect, feed: &FeedState, query: &str,
         return;
     }
 
-    if feed.loading {
+    if feed.loading && feed.posts.is_empty() {
         frame.render_widget(
             Paragraph::new("Searching...")
                 .style(Style::default().yellow())
