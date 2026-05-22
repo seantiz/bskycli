@@ -323,18 +323,11 @@ impl AgentWrapper {
     ) -> Result<(Vec<NotificationViewModel>, Option<String>)> {
         let preferences = PreferencesViewModel::load();
 
-        // NOTE: This has to be an atrium Datetime when passed
-        let seen_at = preferences.last_seen_at.as_ref().and_then(|s| {
-            let dt = chrono::DateTime::parse_from_rfc3339(s).ok()?;
-            let two_days_ago = (dt - chrono::Duration::days(2)).to_rfc3339();
-            two_days_ago.parse::<Datetime>().ok()
-        });
-
         let endpoint = atrium_api::app::bsky::notification::list_notifications::ParametersData {
             limit: 100u8.try_into().ok(),
             reasons: preferences.enabled_notifications(),
             cursor,
-            seen_at,
+            seen_at: None,
             priority: None,
         };
 
@@ -347,10 +340,22 @@ impl AgentWrapper {
             .list_notifications(endpoint.into())
             .await?;
 
+        let threshold = preferences.last_seen_at.as_ref().and_then(|s| {
+            chrono::DateTime::parse_from_rfc3339(s)
+                .map(|dt| dt - chrono::Duration::days(2))
+                .ok()
+        });
+
         let notifications: Vec<NotificationViewModel> = output
             .notifications
             .iter()
             .filter_map(NotificationViewModel::from_notification)
+            .filter(|n| match threshold {
+                Some(t) => chrono::DateTime::parse_from_rfc3339(&n.indexed_at)
+                    .map(|dt| dt > t)
+                    .unwrap_or(true),
+                None => true,
+            })
             .collect();
 
         Ok((notifications, output.cursor.clone()))
