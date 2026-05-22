@@ -77,6 +77,15 @@ pub enum Action {
         cursor: Option<String>,
     },
 
+    FocusSearchInput,
+    Search(String),
+    LoadMoreResults,
+    SearchResults {
+        posts: Vec<PostViewModel>,
+        cursor: Option<String>,
+        append: bool,
+    },
+
     Error(String),
     ClearError,
 
