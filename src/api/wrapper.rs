@@ -25,9 +25,11 @@ impl AgentWrapper {
         let password = next_time.get_password()?;
 
         self.agent.login(&handle, &password).await?;
-        self.agent.to_config()
-            .await.
-            save(&FileStore::new(from_config)).await?;
+        self.agent
+            .to_config()
+            .await
+            .save(&FileStore::new(from_config))
+            .await?;
         Ok(())
     }
 
@@ -56,17 +58,23 @@ impl AgentWrapper {
                     session: None,
                     ..Default::default()
                 };
-                (true, BskyAgent::builder().config(new_session).build().await?)
-
+                (
+                    true,
+                    BskyAgent::builder().config(new_session).build().await?,
+                )
             }
         };
 
         let wrapper = AgentWrapper { agent };
 
         if reborn {
-            wrapper.many_sessions(startup, maybe_handle.expect("No username provided from local config")).await?;
+            wrapper
+                .many_sessions(
+                    startup,
+                    maybe_handle.expect("No username provided from local config"),
+                )
+                .await?;
         }
-
 
         Ok(wrapper)
     }
@@ -265,6 +273,44 @@ impl AgentWrapper {
             .feed
             .iter()
             .filter_map(PostViewModel::from_feed_view_post)
+            .collect();
+
+        Ok((posts, output.cursor.clone()))
+    }
+
+    pub async fn search_firehose(
+        &self,
+        search_query: String,
+        _cursor: Option<String>,
+    ) -> Result<(Vec<PostViewModel>, Option<String>)> {
+        let endpoint = atrium_api::app::bsky::feed::search_posts::ParametersData {
+            q: search_query,
+            sort: Some("latest".to_string()),
+            author: None,
+            cursor: None,
+            domain: None,
+            lang: None,
+            limit: None,
+            mentions: None,
+            since: None,
+            tag: None,
+            until: None,
+            url: None,
+        };
+
+        let output = self
+            .agent
+            .api
+            .app
+            .bsky
+            .feed
+            .search_posts(endpoint.into())
+            .await?;
+
+        let posts: Vec<PostViewModel> = output
+            .posts
+            .iter()
+            .filter_map(PostViewModel::from_post_view)
             .collect();
 
         Ok((posts, output.cursor.clone()))
