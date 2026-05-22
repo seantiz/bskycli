@@ -587,9 +587,7 @@ impl App {
                 match idx {
                     0 => {
                         self.screen = Screen::Timeline;
-                        if self.timeline.posts.is_empty() {
-                            self.dispatch(Action::RefreshTimeline);
-                        }
+                        self.dispatch(Action::RefreshTimeline);
                     }
                     1 => {
                         if let Some(handle) = self.handle.clone() {
@@ -826,15 +824,20 @@ impl App {
                 }
             }
 
-            Action::TogglePreferences => match self.preferences_selected_index {
-                0 => self.preferences.hide_replies = !self.preferences.hide_replies,
-                1 => {
-                    self.preferences.hide_replies_by_unfollowed =
-                        !self.preferences.hide_replies_by_unfollowed
+            Action::TogglePreferences => {
+                match self.preferences_selected_index {
+                    1 => self.preferences.hide_replies = !self.preferences.hide_replies,
+                    2 => {
+                        self.preferences.hide_replies_by_unfollowed =
+                            !self.preferences.hide_replies_by_unfollowed
+                    }
+                    3 => self.preferences.hide_reposts = !self.preferences.hide_reposts,
+                    4 => self.preferences.hide_quote_posts = !self.preferences.hide_quote_posts,
+                    _ => {}
                 }
-                2 => self.preferences.hide_reposts = !self.preferences.hide_reposts,
-                3 => self.preferences.hide_quote_posts = !self.preferences.hide_quote_posts,
-                _ => {}
+                if let Err(e) = self.preferences.save() {
+                    error!("Failed to save preferences: {}", e);
+                }
             },
 
             Action::FocusSearchInput => {
