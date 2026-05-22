@@ -1,8 +1,12 @@
-use ratatui::prelude::*;
+use ratatui::layout::Rect;
 use ratatui::widgets::{Block, Borders, Tabs as RatatuiTabs};
+use ratatui::Frame;
+use ratatui::style::Style;
 
 pub fn draw_tabs(frame: &mut Frame, area: Rect, active: usize) {
-    let titles = vec!["[1] Timeline", "[2] Profile", "[3] Preferences", "[4] Search"];
+    // TODO: This now adds a hard requirement that the user have nerd font installed. 
+    
+    let titles = vec!["[1] Timeline", "[2] Profile", "[3] Preferences", "[4] Search", "\u{f0e0}"];
     let tabs = RatatuiTabs::new(titles)
         .block(
             Block::default()
@@ -10,11 +14,11 @@ pub fn draw_tabs(frame: &mut Frame, area: Rect, active: usize) {
                 .title(" Bluesky "),
         )
         .select(active)
-        .style(Style::default().fg(Color::DarkGray))
+        .style(Style::default().dark_gray())
         .highlight_style(
             Style::default()
-                .fg(Color::Cyan)
-                .add_modifier(Modifier::BOLD),
+                .cyan()
+                .bold()
         );
     frame.render_widget(tabs, area);
 }
