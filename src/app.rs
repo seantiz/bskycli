@@ -491,7 +491,7 @@ impl App {
                 }
                 Screen::Preferences => {
                     // NOTE: Off by one for ui padding
-                    self.preferences_selected_index = (self.preferences_selected_index + 1).min(4);
+                    self.preferences_selected_index = (self.preferences_selected_index + 1).min(11);
                 }
                 _ => {}
             },
@@ -833,6 +833,16 @@ impl App {
                     }
                     3 => self.preferences.hide_reposts = !self.preferences.hide_reposts,
                     4 => self.preferences.hide_quote_posts = !self.preferences.hide_quote_posts,
+                    5 => self.preferences.notify_likes = !self.preferences.notify_likes,
+                    6 => self.preferences.notify_reposts = !self.preferences.notify_reposts,
+                    7 => self.preferences.notify_follows = !self.preferences.notify_follows,
+                    8 => self.preferences.notify_mentions = !self.preferences.notify_mentions,
+                    9 => self.preferences.notify_replies = !self.preferences.notify_replies,
+                    10 => self.preferences.notify_quotes = !self.preferences.notify_quotes,
+                    11 => {
+                        self.preferences.notify_starterpack_joins =
+                            !self.preferences.notify_starterpack_joins
+                    }
                     _ => {}
                 }
                 if let Err(e) = self.preferences.save() {
