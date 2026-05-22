@@ -11,6 +11,7 @@ pub mod thread;
 pub mod timeline;
 pub mod user_prefs;
 pub mod search;
+pub mod notifications;
 
 use crossterm::event::KeyEvent;
 use ratatui::Frame;
