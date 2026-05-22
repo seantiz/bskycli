@@ -10,6 +10,7 @@ pub mod tabs;
 pub mod thread;
 pub mod timeline;
 pub mod user_prefs;
+pub mod search;
 
 use crossterm::event::KeyEvent;
 use ratatui::Frame;
