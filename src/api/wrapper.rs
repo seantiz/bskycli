@@ -340,11 +340,12 @@ impl AgentWrapper {
             .list_notifications(endpoint.into())
             .await?;
 
-        let threshold = preferences.last_seen_at.as_ref().and_then(|s| {
-            chrono::DateTime::parse_from_rfc3339(s)
-                .map(|dt| dt - chrono::Duration::days(2))
-                .ok()
-        });
+        let threshold = match &preferences.last_seen_at {
+            Some(s) => chrono::DateTime::parse_from_rfc3339(s)
+                .map(|dt| (dt - chrono::Duration::days(2)).with_timezone(&chrono::Utc))
+                .ok(),
+            None => Some(chrono::Utc::now() - chrono::Duration::days(2)),
+        };
 
         let notifications: Vec<NotificationViewModel> = output
             .notifications
