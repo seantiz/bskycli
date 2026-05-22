@@ -49,7 +49,7 @@ impl PreferencesViewModel {
         std::fs::write(config_path, content)
     }
 
-    pub fn enabled_notification_reasons(&self) -> Option<Vec<String>> {
+    pub fn enabled_notifications(&self) -> Option<Vec<String>> {
         let mut reasons = Vec::new();
         if self.notify_likes { reasons.push("like".to_string()); }
         if self.notify_reposts { reasons.push("repost".to_string()); }
