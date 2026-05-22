@@ -30,7 +30,8 @@ pub fn draw_statusbar(
             }
             Screen::Profile => {""}
             Screen::Preferences => {""},
-            Screen::Search => {"/ to begin searching Bluesky"}
+            Screen::Search => {"/ to begin searching Bluesky"},
+            Screen::Notifications => {""}
         }
     };
 
