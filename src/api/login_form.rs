@@ -17,7 +17,7 @@ pub async fn login(
         .await?;
 
     let next_time = Entry::new("bskycli", "user")?;
-    next_time.set_password(&password)?;
+    next_time.set_password(password)?;
 
     // WARN: Confusing because the client can't do anything until this store has been created
     Ok(session.handle.to_string())

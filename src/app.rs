@@ -13,13 +13,14 @@ use crate::api::login_form;
 use crate::api::wrapper::{AgentWrapper, ReplyRef};
 use crate::event::{self, EventHandler};
 use crate::models::feed::FeedState;
+use crate::models::post::PostViewModel;
 use crate::models::preferences::PreferencesViewModel;
 use crate::models::profile::ProfileViewModel;
 use crate::models::thread::ThreadViewModel;
 use crate::tui::Tui;
-use crate::ui::{Component, Dialog};
 use crate::ui::composer::Composer;
 use crate::ui::login::LoginForm;
+use crate::ui::{Component, Dialog};
 use crate::utils::meta::ImageLibrary;
 use ratatui_image::protocol::StatefulProtocol;
 
@@ -53,6 +54,9 @@ pub struct App {
     // State
     timeline: FeedState,
     thread: Option<ThreadViewModel>,
+    thread_cursor: usize,
+    thread_origin: usize,
+    thread_padding: usize,
     profile: Option<ProfileViewModel>,
     profile_feed: FeedState,
     preferences: PreferencesViewModel,
@@ -63,8 +67,7 @@ pub struct App {
     notifications: Vec<crate::models::notifications::NotificationViewModel>,
     notifications_cursor: Option<String>,
     notifications_loading: bool,
-    // NOTE: Purely for notifications
-    scrolled_past: usize,
+    current_notification: usize,
     error_message: Option<String>,
 
     // Active data-loading task (aborted when a new load starts or on navigation)
@@ -95,6 +98,9 @@ impl App {
             handle: None,
             timeline: FeedState::new(),
             thread: None,
+            thread_cursor: 0,
+            thread_origin: 0,
+            thread_padding: 3,
             profile: None,
             profile_feed: FeedState::new(),
             preferences: PreferencesViewModel::load(),
@@ -105,7 +111,7 @@ impl App {
             notifications: Vec::new(),
             notifications_cursor: None,
             notifications_loading: false,
-            scrolled_past: 0,
+            current_notification: 0,
             error_message: None,
             active_load: None,
             login_form: LoginForm::new(None),
@@ -118,8 +124,8 @@ impl App {
     }
 
     pub async fn run(&mut self, terminal: &mut Tui) -> Result<()> {
-        if let Some(did) = self.client.agent.did().await {
-            if self
+        if let Some(did) = self.client.agent.did().await
+            && self
                 .client
                 .agent
                 .api
@@ -129,11 +135,10 @@ impl App {
                 .refresh_session()
                 .await
                 .is_ok()
-            {
-                self.handle = Some(did.to_string());
-                self.screen = Screen::Timeline;
-                self.dispatch(Action::RefreshTimeline);
-            }
+        {
+            self.handle = Some(did.to_string());
+            self.screen = Screen::Timeline;
+            self.dispatch(Action::RefreshTimeline);
         }
 
         let mut events = EventHandler::new();
@@ -239,10 +244,31 @@ impl App {
         }
     }
 
+    // NOTE: Moving around
+    // 0:   parent[0] is eldest
+    // 1:   parent[1]
+    // ...
+    // N-1: parent[N-1]   is the immediate parent
+    // N:   focal         is our view entry point
+    // N+1: reply[0]
+    // N+2: reply[1]
+    fn move_around_thread(&self) -> Option<&PostViewModel> {
+        let thread = self.thread.as_ref()?;
+        if self.thread_cursor < thread.parents.len() {
+            thread.parents.get(self.thread_cursor)
+        } else if self.thread_cursor == thread.parents.len() {
+            Some(&thread.focal)
+        } else {
+            thread
+                .replies
+                .get(self.thread_cursor - thread.parents.len() - 1)
+        }
+    }
+
     fn make_reply_action(&self) -> Option<Action> {
         let post = match self.screen {
             Screen::Timeline => self.timeline.selected_post(),
-            Screen::Thread => self.thread.as_ref().map(|t| &t.focal),
+            Screen::Thread => self.move_around_thread(),
             Screen::Profile => self.profile_feed.selected_post(),
             _ => None,
         };
@@ -278,7 +304,7 @@ impl App {
             Screen::Timeline => self.timeline.selected_post(),
             Screen::Profile => self.profile_feed.selected_post(),
             Screen::Search => self.search_feed.selected_post(),
-            Screen::Thread => self.thread.as_ref().map(|t| &t.focal),
+            Screen::Thread => self.move_around_thread(),
             _ => None,
         };
 
@@ -311,27 +337,27 @@ impl App {
         self.spawn_load(async move {
             match library.retrieve_or_download(&url).await {
                 Ok(path) => {
-                    if let Ok(data) = std::fs::read(&path) {
-                        if let Ok(dyn_img) = image::load_from_memory(&data) {
-                            let mut picker = ratatui_image::picker::Picker::from_query_stdio();
-                            picker
-                                .as_mut()
-                                .expect("REASON")
-                                .set_protocol_type(ratatui_image::picker::ProtocolType::Kitty);
-                            let font_size = picker.as_mut().expect("REASON").font_size();
-                            let cols = (dyn_img.width() / font_size.0 as u32).max(1) as u16;
-                            let rows = (dyn_img.height() / font_size.1 as u32).max(1) as u16;
-                            let protocol = picker
-                                .as_mut()
-                                .expect("REASON")
-                                .new_resize_protocol(dyn_img);
-                            let _ = tx.send(Action::ImageLoaded {
-                                post_uri,
-                                protocol,
-                                cols,
-                                rows,
-                            });
-                        }
+                    if let Ok(data) = std::fs::read(&path)
+                        && let Ok(dyn_img) = image::load_from_memory(&data)
+                    {
+                        let mut picker = ratatui_image::picker::Picker::from_query_stdio();
+                        picker
+                            .as_mut()
+                            .expect("REASON")
+                            .set_protocol_type(ratatui_image::picker::ProtocolType::Kitty);
+                        let font_size = picker.as_mut().expect("REASON").font_size();
+                        let cols = (dyn_img.width() / font_size.0 as u32).max(1) as u16;
+                        let rows = (dyn_img.height() / font_size.1 as u32).max(1) as u16;
+                        let protocol = picker
+                            .as_mut()
+                            .expect("REASON")
+                            .new_resize_protocol(dyn_img);
+                        let _ = tx.send(Action::ImageLoaded {
+                            post_uri,
+                            protocol,
+                            cols,
+                            rows,
+                        });
                     }
                 }
                 Err(e) => {
@@ -377,7 +403,12 @@ impl App {
             }
 
             Action::Logout => {
-                let _ = login_form::logout(&self.client);
+                if let Err(e) = login_form::logout(&self.client).await {
+                    error!(
+                        "Something went wrong and the session may not have been cleared: {}",
+                        e
+                    )
+                }
                 self.handle = None;
                 self.screen = Screen::Login;
                 self.timeline = FeedState::new();
@@ -389,7 +420,12 @@ impl App {
             }
 
             Action::DefinitelyLogout => {
-                let _ = login_form::logout(&self.client);
+                if let Err(e) = login_form::logout(&self.client).await {
+                    error!(
+                        "Something went wrong and the session may not have been cleared: {}",
+                        e
+                    )
+                }
                 self.handle = None;
                 self.screen = Screen::Login;
                 self.timeline = FeedState::new();
@@ -469,7 +505,16 @@ impl App {
                     self.profile_feed.select_next();
                 }
                 Screen::Thread => {
-                    // Thread navigation is handled at draw level
+                    if let Some(ref thread) = self.thread {
+                        let total = thread.parents.len() + 1 + thread.replies.len();
+                        if total > 0 && self.thread_cursor + 1 < total {
+                            self.thread_cursor += 1;
+                            if self.thread_cursor >= self.thread_origin + self.thread_padding {
+                                self.thread_origin += 1;
+                            }
+                            self.load_selected_post_images();
+                        }
+                    }
                 }
                 Screen::Search => {
                     self.search_feed.select_next();
@@ -479,11 +524,11 @@ impl App {
                 }
                 Screen::Notifications => {
                     if !self.notifications.is_empty()
-                        && self.scrolled_past < self.notifications.len() - 1
+                        && self.current_notification < self.notifications.len() - 1
                     {
-                        self.scrolled_past += 1;
+                        self.current_notification += 1;
                     }
-                    if self.scrolled_past + 3 >= self.notifications.len()
+                    if self.current_notification + 3 >= self.notifications.len()
                         && self.notifications_cursor.is_some()
                     {
                         self.dispatch(Action::LoadMoreNotifications);
@@ -507,8 +552,15 @@ impl App {
                     self.search_feed.select_prev();
                 }
                 Screen::Notifications => {
-                    if self.scrolled_past > 0 {
-                        self.scrolled_past -= 1;
+                    self.current_notification = self.current_notification.saturating_sub(1);
+                }
+                Screen::Thread => {
+                    if self.thread_cursor > 0 {
+                        self.thread_cursor -= 1;
+                        if self.thread_cursor < self.thread_origin + self.thread_padding {
+                            self.thread_origin = self.thread_origin.saturating_sub(1);
+                        }
+                        self.load_selected_post_images();
                     }
                 }
                 Screen::Preferences => {
@@ -523,7 +575,11 @@ impl App {
                 Screen::Timeline => self.timeline.select_first(),
                 Screen::Profile => self.profile_feed.select_first(),
                 Screen::Search => self.search_feed.select_first(),
-                Screen::Notifications => self.scrolled_past = 0,
+                Screen::Thread => {
+                    self.thread_cursor = 0;
+                    self.thread_origin = 0;
+                }
+                Screen::Notifications => self.current_notification = 0,
                 _ => {}
             },
 
@@ -531,10 +587,16 @@ impl App {
                 Screen::Timeline => self.timeline.select_last(),
                 Screen::Profile => self.profile_feed.select_last(),
                 Screen::Search => self.search_feed.select_last(),
-                Screen::Notifications => {
-                    if !self.notifications.is_empty() {
-                        self.scrolled_past = self.notifications.len() - 1;
+                Screen::Thread => {
+                    if let Some(ref thread) = self.thread {
+                        let total = thread.parents.len() + 1 + thread.replies.len();
+                        if total > 0 {
+                            self.thread_cursor = total - 1;
+                        }
                     }
+                }
+                Screen::Notifications => {
+                    self.current_notification = self.notifications.len().saturating_sub(1);
                 }
                 _ => {}
             },
@@ -546,7 +608,7 @@ impl App {
                     Screen::Search => self.search_feed.selected_post().map(|p| p.uri.clone()),
                     Screen::Notifications => self
                         .notifications
-                        .get(self.scrolled_past)
+                        .get(self.current_notification)
                         .and_then(|n| n.subject.clone()),
                     _ => None,
                 };
@@ -571,6 +633,10 @@ impl App {
 
             Action::ThreadLoaded(thread) => {
                 self.thread = *thread;
+                if let Some(ref t) = self.thread {
+                    self.thread_cursor = t.parents.len();
+                    self.thread_origin = 0;
+                }
                 self.load_selected_post_images();
             }
 
@@ -646,7 +712,7 @@ impl App {
             Action::ToggleLike => {
                 let post = match self.screen {
                     Screen::Timeline => self.timeline.selected_post().cloned(),
-                    Screen::Thread => self.thread.as_ref().map(|t| t.focal.clone()),
+                    Screen::Thread => self.move_around_thread().cloned(),
                     Screen::Profile => self.profile_feed.selected_post().cloned(),
                     _ => None,
                 };
@@ -707,7 +773,7 @@ impl App {
             Action::ToggleRepost => {
                 let post = match self.screen {
                     Screen::Timeline => self.timeline.selected_post().cloned(),
-                    Screen::Thread => self.thread.as_ref().map(|t| t.focal.clone()),
+                    Screen::Thread => self.move_around_thread().cloned(),
                     Screen::Profile => self.profile_feed.selected_post().cloned(),
                     _ => None,
                 };
@@ -771,7 +837,7 @@ impl App {
             Action::ViewAuthorProfile => {
                 let did = match self.screen {
                     Screen::Timeline => self.timeline.selected_post().map(|p| p.author_did.clone()),
-                    Screen::Thread => self.thread.as_ref().map(|t| t.focal.author_did.clone()),
+                    Screen::Thread => self.move_around_thread().map(|p| p.author_did.clone()),
                     _ => None,
                 };
                 if let Some(did) = did {
@@ -847,7 +913,7 @@ impl App {
                 if let Err(e) = self.preferences.save() {
                     error!("Failed to save preferences: {}", e);
                 }
-            },
+            }
 
             Action::FocusSearchInput => {
                 self.search_focused = true;
@@ -968,7 +1034,7 @@ impl App {
                 } else {
                     self.notifications = notifications;
                     self.notifications_cursor = cursor;
-                    self.scrolled_past = 0;
+                    self.current_notification = 0;
                 }
             }
 
@@ -1062,6 +1128,8 @@ impl App {
                     frame,
                     chunks[1],
                     self.thread.as_ref(),
+                    self.thread_cursor,
+                    self.thread_origin,
                     &mut self.image_protocols,
                 );
             }
@@ -1095,7 +1163,7 @@ impl App {
                     frame,
                     chunks[1],
                     &self.notifications,
-                    self.scrolled_past,
+                    self.current_notification,
                     self.notifications_loading,
                 );
             }
