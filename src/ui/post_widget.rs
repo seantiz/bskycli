@@ -29,10 +29,10 @@ pub fn draw_post(
     frame: &mut Frame,
     area: Rect,
     post: &PostViewModel,
-    selected: bool,
+    highlighted: bool,
     image_state: Option<&mut ImageState>,
 ) {
-    let border_style = if selected {
+    let border_style = if highlighted {
         Style::default().cyan()
     } else {
         Style::default().dark_gray()
