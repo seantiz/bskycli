@@ -16,14 +16,11 @@ All the essentials you'd expect from social media:
 - Open any post with images and they render in your terminal
 - Control whether you see replies, quoted posts and reposts of account you follow
 
-## TODOs
-If you're a kitty terminal user and you know the graphics protocol, help is welcome on closing the gaps below:
+## What's Missing (Long-Term)
 
-- Quoted posts aren't fully rendered. I haven't decided if KGP or Ratatui is better off handling this case.
-- It'd be great if posts with links could have their links loaded directly from within the app. This is definitely something to wire through kitty.
+- Ideally posts with links (destructured from ATP's post "facets") could be navigatied to directly from within the timeline. Very likely this has to be handled outside of ratatui.
 
-### Longer Term
-- There's no video rendering yet. This isn't a priority for me, you may disagree. It'd likely to outward calls to `mpv` to get it done. Whether or not to handle it inline is another aspect.
+- There's no video rendering at the moment. This isn't a priority for me, you may disagree. It'd likely to an external call to `mpv` get it done, which presents its own risks and I'm unsure Bluesky welcome hotlinking videos from their endpoints.
 
 ## Installation
 Git clone and build this from source. Make sure you have `cargo` installed, then run the cargo build or install command at project root.
