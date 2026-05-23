@@ -2,7 +2,7 @@ use ratatui::prelude::*;
 use ratatui::widgets::{Block, Borders, Paragraph, Wrap};
 
 use crate::app::ImageState;
-use crate::models::post::PostViewModel;
+use crate::models::post::{EmbedKind, PostViewModel, QuotedPost};
 use crate::utils::text::{styled_text, wrapped_line_count};
 use crate::utils::time::relative_time;
 
@@ -12,17 +12,41 @@ pub fn post_height(post: &PostViewModel, width: u16, image_rows: Option<u16>) ->
 
     let mut height = 1 + text_lines + 1 + 1;
 
-    if post.reply_parent_author.is_some() {
+    if post.replied_by.is_some() {
         height += 1;
     }
     if post.reposted_by.is_some() {
         height += 1;
     }
-    if post.embed_summary.is_some() {
-        height += image_rows.unwrap_or(1);
+    if let Some(ref embed) = post.meta {
+        match &embed.kind {
+            EmbedKind::Images(_) => {
+                height += image_rows.unwrap_or(1);
+            }
+            EmbedKind::Record(quoted) => {
+                height += quoted_card_height(quoted, text_width);
+            }
+            EmbedKind::RecordWithMedia(quoted) => {
+                height += quoted_card_height(quoted, text_width) + 1;
+            }
+            _ => {
+                height += 1;
+            }
+        }
     }
 
     height
+}
+
+fn quoted_card_height(quoted: &QuotedPost, width: u16) -> u16 {
+    let mut h = 3u16;
+    if !quoted.text.is_empty() {
+        h += wrapped_line_count(&quoted.text, width.saturating_sub(2)).min(3);
+    }
+    if quoted.meta.is_some() {
+        h += 1;
+    }
+    h
 }
 
 pub fn draw_post(
@@ -71,7 +95,7 @@ pub fn draw_post(
     }
 
     // Reply indicator
-    if let Some(ref parent_author) = post.reply_parent_author {
+    if let Some(ref parent_author) = post.replied_by {
         if y >= bottom {
             return;
         }
@@ -92,9 +116,9 @@ pub fn draw_post(
     }
     let time_str = relative_time(&post.created_at);
     let author_line = Line::from(vec![
-        Span::styled(&post.author_display_name, Style::default().white().bold()),
+        Span::styled(&post.display_name, Style::default().white().bold()),
         Span::styled(
-            format!("  @{}", post.author_handle),
+            format!("  @{}", post.handle),
             Style::default().dark_gray(),
         ),
         Span::styled(format!("  {}", time_str), Style::default().dark_gray()),
@@ -115,42 +139,56 @@ pub fn draw_post(
     let wrap_lines = wrapped_line_count(&post.text, w);
     y += wrap_lines.min(remaining);
 
-    if let Some(ref embed) = post.embed_summary {
+    if let Some(ref embed) = post.meta {
         if y < bottom {
-            if let crate::models::post::EmbedKind::Images(n) = &embed.kind {
-                if let Some(state) = image_state {
-                    let h = (bottom - y).min(state.rows);
-                    let img_area = Rect::new(x, y, state.cols.min(w), h);
-                    frame.render_stateful_widget(
-                        ratatui_image::StatefulImage::default(),
-                        img_area,
-                        &mut state.protocol,
+            match &embed.kind {
+                EmbedKind::Images(n) => {
+                    if let Some(state) = image_state {
+                        let h = (bottom - y).min(state.rows);
+                        let img_area = Rect::new(x, y, state.cols.min(w), h);
+                        frame.render_stateful_widget(
+                            ratatui_image::StatefulImage::default(),
+                            img_area,
+                            &mut state.protocol,
+                        );
+                        y += h;
+                    } else {
+                        draw_embed_images(frame, x, y, w, n.len());
+                        y += 1;
+                    }
+                }
+                EmbedKind::Record(quoted) => {
+                    y = draw_quoted_card(frame, x, y, w, bottom, quoted);
+                }
+                EmbedKind::RecordWithMedia(quoted) => {
+                    y = draw_quoted_card(frame, x, y, w, bottom, quoted);
+                    if y < bottom {
+                        frame.render_widget(
+                            Paragraph::new("📎 [media]").style(Style::default().dark_gray()),
+                            Rect::new(x, y, w, 1),
+                        );
+                        y += 1;
+                    }
+                }
+                _ => {
+                    let embed_text = match (&embed.title, &embed.description) {
+                        (Some(t), _) => format!("📎 {}", t),
+                        (_, Some(d)) => format!("📎 {}", d),
+                        _ => format!(
+                            "📎 [{}]",
+                            match embed.kind {
+                                EmbedKind::ExternalLink => "link",
+                                EmbedKind::Video => "video",
+                                _ => unreachable!(),
+                            }
+                        ),
+                    };
+                    frame.render_widget(
+                        Paragraph::new(embed_text).style(Style::default().dark_gray()),
+                        Rect::new(x, y, w, 1),
                     );
-                    y += h;
-                } else {
-                    draw_embed_images(frame, x, y, w, n.len());
                     y += 1;
                 }
-            } else {
-                let embed_text = match (&embed.title, &embed.description) {
-                    (Some(t), _) => format!("📎 {}", t),
-                    (_, Some(d)) => format!("📎 {}", d),
-                    _ => format!(
-                        "📎 [{}]",
-                        match embed.kind {
-                            crate::models::post::EmbedKind::ExternalLink => "link",
-                            crate::models::post::EmbedKind::Video => "video",
-                            crate::models::post::EmbedKind::Record => "quote",
-                            crate::models::post::EmbedKind::RecordWithMedia => "quote+media",
-                            crate::models::post::EmbedKind::Images(_) => unreachable!(),
-                        }
-                    ),
-                };
-                frame.render_widget(
-                    Paragraph::new(embed_text).style(Style::default().dark_gray()),
-                    Rect::new(x, y, w, 1),
-                );
-                y += 1;
             }
         }
     }
@@ -170,13 +208,13 @@ pub fn draw_post(
 
         let stats = Line::from(vec![
             Span::styled(if post.is_liked { "♥ " } else { "♡ " }, like_style),
-            Span::styled(format!("{}", post.like_count), like_style),
+            Span::styled(format!("{}", post.likes), like_style),
             Span::raw("  "),
             Span::styled(if post.is_reposted { "⟳ " } else { "⟳ " }, repost_style),
-            Span::styled(format!("{}", post.repost_count), repost_style),
+            Span::styled(format!("{}", post.reposts), repost_style),
             Span::raw("  "),
             Span::styled(
-                format!("Replies {}", post.reply_count),
+                format!("Replies {}", post.replies),
                 Style::default().dark_gray(),
             ),
         ]);
@@ -190,4 +228,79 @@ fn draw_embed_images(frame: &mut Frame, x: u16, y: u16, w: u16, count: usize) {
         Paragraph::new(text).style(Style::default().dark_gray()),
         Rect::new(x, y, w, 1),
     );
+}
+
+fn draw_quoted_card(
+    frame: &mut Frame,
+    x: u16,
+    y: u16,
+    w: u16,
+    bottom: u16,
+    quoted: &QuotedPost,
+) -> u16 {
+    let mut cy = y;
+    let dim = Style::default().dark_gray();
+
+    if cy < bottom {
+        frame.render_widget(
+            Paragraph::new(Span::styled(" ─ ─ ─ ─ ─ ─ ─ ─ ─", dim)),
+            Rect::new(x, cy, w, 1),
+        );
+        cy += 1;
+    }
+
+    if cy < bottom {
+        let author = if quoted.handle.is_empty() {
+            Line::from(Span::styled(&quoted.text, dim))
+        } else {
+            Line::from(vec![
+                Span::styled(&quoted.display_name, dim),
+                Span::styled(format!("  @{}", quoted.handle), dim),
+            ])
+        };
+        frame.render_widget(Paragraph::new(author), Rect::new(x, cy, w, 1));
+        cy += 1;
+    }
+
+    if cy < bottom && !quoted.text.is_empty() && !quoted.handle.is_empty() {
+        let text_lines = styled_text(&quoted.text, &quoted.facets);
+        let wrap_count = wrapped_line_count(&quoted.text, w.saturating_sub(2)).min(3);
+        let text_height = (bottom - cy).min(wrap_count);
+        frame.render_widget(
+            Paragraph::new(text_lines).wrap(Wrap { trim: false }),
+            Rect::new(x + 1, cy, w.saturating_sub(1), text_height),
+        );
+        cy += text_height;
+    }
+
+    if let Some(ref embed) = quoted.meta {
+        if cy < bottom {
+            let text = match &embed.kind {
+                EmbedKind::ExternalLink => embed
+                    .title
+                    .as_deref()
+                    .map(|t| format!("📎 {}", t))
+                    .or_else(|| embed.description.as_deref().map(|d| format!("📎 {}", d)))
+                    .unwrap_or_else(|| "📎 [link]".to_string()),
+                EmbedKind::Images(imgs) => {
+                    format!("🖼 {} image{}", imgs.len(), if imgs.len() != 1 { "s" } else { "" })
+                }
+                EmbedKind::Video => "📎 [video]".to_string(),
+                EmbedKind::Record(_) => "📎 [quote]".to_string(),
+                EmbedKind::RecordWithMedia(_) => "📎 [quote+media]".to_string(),
+            };
+            frame.render_widget(Paragraph::new(text).style(dim), Rect::new(x, cy, w, 1));
+            cy += 1;
+        }
+    }
+
+    if cy < bottom {
+        frame.render_widget(
+            Paragraph::new(Span::styled(" ─ ─ ─ ─ ─ ─ ─ ─ ─", dim)),
+            Rect::new(x, cy, w, 1),
+        );
+        cy += 1;
+    }
+
+    cy
 }

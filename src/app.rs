@@ -280,7 +280,7 @@ impl App {
                 root_uri: p.uri.clone(),
                 root_cid: p.cid.clone(),
             }),
-            reply_to_author: Some(p.author_display_name.clone()),
+            reply_to_author: Some(p.display_name.clone()),
         })
     }
 
@@ -313,7 +313,7 @@ impl App {
             None => return,
         };
 
-        let embed = match &post.embed_summary {
+        let embed = match &post.meta {
             Some(e) => match &e.kind {
                 crate::models::post::EmbedKind::Images(imgs) => imgs,
                 _ => return,
@@ -758,7 +758,7 @@ impl App {
                 self.update_post(&post_uri, |p| {
                     p.is_liked = true;
                     p.like_uri = Some(like_uri.clone());
-                    p.like_count += 1;
+                    p.likes += 1;
                 });
             }
 
@@ -766,7 +766,7 @@ impl App {
                 self.update_post(&post_uri, |p| {
                     p.is_liked = false;
                     p.like_uri = None;
-                    p.like_count = (p.like_count - 1).max(0);
+                    p.likes = (p.likes - 1).max(0);
                 });
             }
 
@@ -822,7 +822,7 @@ impl App {
                 self.update_post(&post_uri, |p| {
                     p.is_reposted = true;
                     p.repost_uri = Some(repost_uri.clone());
-                    p.repost_count += 1;
+                    p.reposts += 1;
                 });
             }
 
@@ -830,14 +830,14 @@ impl App {
                 self.update_post(&post_uri, |p| {
                     p.is_reposted = false;
                     p.repost_uri = None;
-                    p.repost_count = (p.repost_count - 1).max(0);
+                    p.reposts = (p.reposts - 1).max(0);
                 });
             }
 
             Action::ViewAuthorProfile => {
                 let did = match self.screen {
-                    Screen::Timeline => self.timeline.selected_post().map(|p| p.author_did.clone()),
-                    Screen::Thread => self.move_around_thread().map(|p| p.author_did.clone()),
+                    Screen::Timeline => self.timeline.selected_post().map(|p| p.did.clone()),
+                    Screen::Thread => self.move_around_thread().map(|p| p.did.clone()),
                     _ => None,
                 };
                 if let Some(did) = did {

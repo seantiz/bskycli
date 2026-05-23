@@ -53,7 +53,7 @@ impl AgentWrapper {
         let (reborn, agent) = match BskyAgent::builder().config(config).build().await {
             Ok(a) => (false, a),
             Err(_) => {
-                eprintln!("ATP server has invalidated the prior session");
+                eprintln!("Starting a new session...");
                 let new_session = Config {
                     endpoint: maybe_new,
                     session: None,
