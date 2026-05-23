@@ -3,7 +3,7 @@ What's different's about this one compared to all the other Bluesky clients? Not
 
 The wider issue is the AT Protocol and Bluesky libraries are still likely to be subject to change over the next year or so. In that spirit, this app is a product of me hacking around the ATP endpoints and just seeing what works and what I could get away with doing. 
 
-**As of version 0.4.4** this app does the job and is secure. I think it makes for a full Bluesky experience. Feel free to get in touch if something is lacking.
+**As of version 0.4.4** this app does the job and is secure. I think it makes for a near-full Bluesky experience. Feel free to get in touch if something is lacking.
 
 ## Features in Brief
 All the essentials you'd expect from social media:
@@ -18,9 +18,9 @@ All the essentials you'd expect from social media:
 
 ## What's Missing (Long-Term)
 
-- Ideally posts with links (destructured from ATP's post "facets") could be navigatied to directly from within the timeline. Very likely this has to be handled outside of ratatui.
+- Ideally posts with links (destructured from ATP's post "facets") could be navigated to directly from within the timeline. Very likely this has to be handled outside of ratatui.
 
-- Great feature mentioned on the Bluesky codebase here: [bluesky-social/social-app#10601](https://github.com/bluesky-social/social-app/issues/10601) which would work "login, react, leave" mode. Right now this app sort of works this way (you have to press `R` to hard re-render the timeline) but if it could be an option to totally guarantee you see nothing but a snapshot of your timeline and are protected from a doomscrolling session, that'd be a worth bringing into the settings menu.
+- Great feature mentioned on the Bluesky codebase here: [bluesky-social/social-app#10601](https://github.com/bluesky-social/social-app/issues/10601) which would work as a "login, react, leave" mode. Right now this app sort of works this way (you have to press `R` to hard re-render the timeline) but if it could be an option to totally guarantee you see nothing but a snapshot of your timeline and are protected from a doomscrolling session, that'd be a worth bringing into the settings menu.
 
 - There's no video rendering at the moment. This isn't a priority for me, you may disagree. It'd likely to an external call to `mpv` get it done, which presents its own risks and I'm unsure Bluesky welcome hotlinking videos from their endpoints.
 
