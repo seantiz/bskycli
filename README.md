@@ -17,12 +17,8 @@ All the essentials you'd expect from social media:
 - Control whether you see replies, quoted posts and reposts of account you follow
 
 ## TODOs
-If you're a kitty terminal user and you know the graphics protocol, help is welcome on closing the gaps below.
+If you're a kitty terminal user and you know the graphics protocol, help is welcome on closing the gaps below:
 
-### Immediate
-- Bug: Sometimes the image rendering will block navigating through a thread.
-
-### Short Term
 - Quoted posts aren't fully rendered. I haven't decided if KGP or Ratatui is better off handling this case.
 - It'd be great if posts with links could have their links loaded directly from within the app. This is definitely something to wire through kitty.
 
