@@ -13,13 +13,14 @@ use crate::api::login_form;
 use crate::api::wrapper::{AgentWrapper, ReplyRef};
 use crate::event::{self, EventHandler};
 use crate::models::feed::FeedState;
+use crate::models::post::PostViewModel;
 use crate::models::preferences::PreferencesViewModel;
 use crate::models::profile::ProfileViewModel;
 use crate::models::thread::ThreadViewModel;
 use crate::tui::Tui;
-use crate::ui::{Component, Dialog};
 use crate::ui::composer::Composer;
 use crate::ui::login::LoginForm;
+use crate::ui::{Component, Dialog};
 use crate::utils::meta::ImageLibrary;
 use ratatui_image::protocol::StatefulProtocol;
 
@@ -53,6 +54,8 @@ pub struct App {
     // State
     timeline: FeedState,
     thread: Option<ThreadViewModel>,
+    thread_id: usize,
+    thread_offset: usize,
     profile: Option<ProfileViewModel>,
     profile_feed: FeedState,
     preferences: PreferencesViewModel,
@@ -95,6 +98,8 @@ impl App {
             handle: None,
             timeline: FeedState::new(),
             thread: None,
+            thread_id: 0,
+            thread_offset: 0,
             profile: None,
             profile_feed: FeedState::new(),
             preferences: PreferencesViewModel::load(),
@@ -236,6 +241,27 @@ impl App {
             }
             Event::Resize(_, _) => {}
             _ => {}
+        }
+    }
+
+    // NOTE: Moving around
+    // 0:   parent[0] is eldest
+    // 1:   parent[1]
+    // ...
+    // N-1: parent[N-1]   is the immediate parent
+    // N:   focal         is our view entry point
+    // N+1: reply[0]
+    // N+2: reply[1]
+    fn move_around_thread(&self) -> Option<&PostViewModel> {
+        let thread = self.thread.as_ref()?;
+        if self.thread_id < thread.parents.len() {
+            thread.parents.get(self.thread_id)
+        } else if self.thread_id == thread.parents.len() {
+            Some(&thread.focal)
+        } else {
+            thread
+                .replies
+                .get(self.thread_id - thread.parents.len() - 1)
         }
     }
 
@@ -847,7 +873,7 @@ impl App {
                 if let Err(e) = self.preferences.save() {
                     error!("Failed to save preferences: {}", e);
                 }
-            },
+            }
 
             Action::FocusSearchInput => {
                 self.search_focused = true;
