@@ -20,6 +20,8 @@ All the essentials you'd expect from social media:
 
 - Ideally posts with links (destructured from ATP's post "facets") could be navigatied to directly from within the timeline. Very likely this has to be handled outside of ratatui.
 
+- Great feature mentioned on the Bluesky codebase here: [bluesky-social/social-app#10601](https://github.com/bluesky-social/social-app/issues/10601) which would work "login, react, leave" mode. Right now this app sort of works this way (you have to press `R` to hard re-render the timeline) but if it could be an option to totally guarantee you see nothing but a snapshot of your timeline and are protected from a doomscrolling session, that'd be a worth bringing into the settings menu.
+
 - There's no video rendering at the moment. This isn't a priority for me, you may disagree. It'd likely to an external call to `mpv` get it done, which presents its own risks and I'm unsure Bluesky welcome hotlinking videos from their endpoints.
 
 ## Installation
