@@ -1,5 +1,12 @@
 use super::post::PostViewModel;
+use atrium_api::app::bsky::feed::defs::{
+    ThreadViewPost, ThreadViewPostParentRefs, ThreadViewPostRepliesItem,
+};
+use atrium_api::types::Union;
 
+/// [`ThreadViewModel`] formats threads with parents above the focal post and replies below.
+/// The formatting is for when user selects a thread from a timeline to view its surrounding discussion.
+/// See [`PostViewModel`].
 #[derive(Debug, Clone)]
 pub struct ThreadViewModel {
     pub parents: Vec<PostViewModel>,
@@ -8,9 +15,7 @@ pub struct ThreadViewModel {
 }
 
 impl ThreadViewModel {
-    pub fn from_thread_view_post(
-        tvp: &atrium_api::app::bsky::feed::defs::ThreadViewPost,
-    ) -> Option<Self> {
+    pub fn from_thread_view_post(tvp: &ThreadViewPost) -> Option<Self> {
         let focal = PostViewModel::from_post_view(&tvp.post)?;
 
         let mut parents = Vec::new();
@@ -32,20 +37,10 @@ impl ThreadViewModel {
     }
 
     fn collect_parents(
-        parent: &Option<
-            atrium_api::types::Union<
-                atrium_api::app::bsky::feed::defs::ThreadViewPostParentRefs,
-            >,
-        >,
+        parent: &Option<Union<ThreadViewPostParentRefs>>,
         out: &mut Vec<PostViewModel>,
     ) {
-        use atrium_api::app::bsky::feed::defs::ThreadViewPostParentRefs;
-        use atrium_api::types::Union;
-
-        if let Some(Union::Refs(ThreadViewPostParentRefs::ThreadViewPost(
-            tvp,
-        ))) = parent
-        {
+        if let Some(Union::Refs(ThreadViewPostParentRefs::ThreadViewPost(tvp))) = parent {
             if let Some(post) = PostViewModel::from_post_view(&tvp.post) {
                 out.push(post);
             }
@@ -53,21 +48,11 @@ impl ThreadViewModel {
         }
     }
 
-    fn collect_reply(
-        reply: &atrium_api::types::Union<
-            atrium_api::app::bsky::feed::defs::ThreadViewPostRepliesItem,
-        >,
-        out: &mut Vec<PostViewModel>,
-    ) {
-        use atrium_api::app::bsky::feed::defs::ThreadViewPostRepliesItem;
-        use atrium_api::types::Union;
-
-        if let Union::Refs(ThreadViewPostRepliesItem::ThreadViewPost(tvp)) =
-            reply
+    fn collect_reply(reply: &Union<ThreadViewPostRepliesItem>, out: &mut Vec<PostViewModel>) {
+        if let Union::Refs(ThreadViewPostRepliesItem::ThreadViewPost(tvp)) = reply
+            && let Some(post) = PostViewModel::from_post_view(&tvp.post)
         {
-            if let Some(post) = PostViewModel::from_post_view(&tvp.post) {
-                out.push(post);
-            }
+            out.push(post);
         }
     }
 }
