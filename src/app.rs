@@ -54,8 +54,9 @@ pub struct App {
     // State
     timeline: FeedState,
     thread: Option<ThreadViewModel>,
-    thread_id: usize,
-    thread_offset: usize,
+    thread_cursor: usize,
+    thread_origin: usize,
+    thread_padding: usize,
     profile: Option<ProfileViewModel>,
     profile_feed: FeedState,
     preferences: PreferencesViewModel,
@@ -97,8 +98,9 @@ impl App {
             handle: None,
             timeline: FeedState::new(),
             thread: None,
-            thread_id: 0,
-            thread_offset: 0,
+            thread_cursor: 0,
+            thread_origin: 0,
+            thread_padding: 3,
             profile: None,
             profile_feed: FeedState::new(),
             preferences: PreferencesViewModel::load(),
@@ -252,14 +254,14 @@ impl App {
     // N+2: reply[1]
     fn move_around_thread(&self) -> Option<&PostViewModel> {
         let thread = self.thread.as_ref()?;
-        if self.thread_id < thread.parents.len() {
-            thread.parents.get(self.thread_id)
-        } else if self.thread_id == thread.parents.len() {
+        if self.thread_cursor < thread.parents.len() {
+            thread.parents.get(self.thread_cursor)
+        } else if self.thread_cursor == thread.parents.len() {
             Some(&thread.focal)
         } else {
             thread
                 .replies
-                .get(self.thread_id - thread.parents.len() - 1)
+                .get(self.thread_cursor - thread.parents.len() - 1)
         }
     }
 
@@ -402,7 +404,10 @@ impl App {
 
             Action::Logout => {
                 if let Err(e) = login_form::logout(&self.client).await {
-                    error!("Something went wrong and the session may not have been cleared: {}", e)
+                    error!(
+                        "Something went wrong and the session may not have been cleared: {}",
+                        e
+                    )
                 }
                 self.handle = None;
                 self.screen = Screen::Login;
@@ -416,7 +421,10 @@ impl App {
 
             Action::DefinitelyLogout => {
                 if let Err(e) = login_form::logout(&self.client).await {
-                    error!("Something went wrong and the session may not have been cleared: {}", e)
+                    error!(
+                        "Something went wrong and the session may not have been cleared: {}",
+                        e
+                    )
                 }
                 self.handle = None;
                 self.screen = Screen::Login;
@@ -499,8 +507,11 @@ impl App {
                 Screen::Thread => {
                     if let Some(ref thread) = self.thread {
                         let total = thread.parents.len() + 1 + thread.replies.len();
-                        if total > 0 && self.thread_id + 1 < total {
-                            self.thread_id += 1;
+                        if total > 0 && self.thread_cursor + 1 < total {
+                            self.thread_cursor += 1;
+                            if self.thread_cursor >= self.thread_origin + self.thread_padding {
+                                self.thread_origin += 1;
+                            }
                             self.load_selected_post_images();
                         }
                     }
@@ -544,8 +555,13 @@ impl App {
                     self.current_notification = self.current_notification.saturating_sub(1);
                 }
                 Screen::Thread => {
-                    self.thread_id = self.thread_id.saturating_sub(1);
-                    self.load_selected_post_images();
+                    if self.thread_cursor > 0 {
+                        self.thread_cursor -= 1;
+                        if self.thread_cursor < self.thread_origin + self.thread_padding {
+                            self.thread_origin = self.thread_origin.saturating_sub(1);
+                        }
+                        self.load_selected_post_images();
+                    }
                 }
                 Screen::Preferences => {
                     // NOTE: Off by one for ui padding
@@ -560,8 +576,8 @@ impl App {
                 Screen::Profile => self.profile_feed.select_first(),
                 Screen::Search => self.search_feed.select_first(),
                 Screen::Thread => {
-                    self.thread_id = 0;
-                    self.thread_offset = 0;
+                    self.thread_cursor = 0;
+                    self.thread_origin = 0;
                 }
                 Screen::Notifications => self.current_notification = 0,
                 _ => {}
@@ -575,7 +591,7 @@ impl App {
                     if let Some(ref thread) = self.thread {
                         let total = thread.parents.len() + 1 + thread.replies.len();
                         if total > 0 {
-                            self.thread_id = total - 1;
+                            self.thread_cursor = total - 1;
                         }
                     }
                 }
@@ -618,8 +634,8 @@ impl App {
             Action::ThreadLoaded(thread) => {
                 self.thread = *thread;
                 if let Some(ref t) = self.thread {
-                    self.thread_id = t.parents.len();
-                    self.thread_offset = 0;
+                    self.thread_cursor = t.parents.len();
+                    self.thread_origin = 0;
                 }
                 self.load_selected_post_images();
             }
@@ -1112,8 +1128,8 @@ impl App {
                     frame,
                     chunks[1],
                     self.thread.as_ref(),
-                    self.thread_id,
-                    self.thread_offset,
+                    self.thread_cursor,
+                    self.thread_origin,
                     &mut self.image_protocols,
                 );
             }
