@@ -88,6 +88,7 @@ pub fn key_to_action(key: KeyEvent, in_composer: bool, in_login: bool) -> Option
         (KeyModifiers::CONTROL, KeyCode::Char('l')) => Some(Action::LogoutConfirm),
         (KeyModifiers::NONE, KeyCode::Char('l')) => Some(Action::ToggleLike),
 
+        (KeyModifiers::NONE, KeyCode::Char('o')) => Some(Action::EnterQuotedPost),
         (KeyModifiers::NONE, KeyCode::Char('u')) => Some(Action::ViewAuthorProfile),
         (KeyModifiers::SHIFT, KeyCode::Char('R')) => Some(Action::RefreshTimeline),
         (KeyModifiers::NONE, KeyCode::Char('g')) => Some(Action::ScrollToTop),

@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use ratatui::prelude::*;
 use ratatui::widgets::Paragraph;
 
@@ -9,6 +11,7 @@ pub fn draw_statusbar(
     screen: &Screen,
     in_composer: bool,
     error: Option<&str>,
+    show_quoted_hint: bool,
 ) {
     if let Some(err) = error {
         let error_bar = Paragraph::new(format!(" There was a problem: {}", err))
@@ -17,21 +20,26 @@ pub fn draw_statusbar(
         return;
     }
 
-    let hints = if in_composer {
-        "Enter: post | Esc: cancel"
+    let hints: Cow<'_, str> = if in_composer {
+        Cow::Borrowed("Enter: post | Esc: cancel")
     } else {
         match screen {
-            Screen::Login => "Tab to cycle and Escape to close",
+            Screen::Login => Cow::Borrowed("Tab to cycle and Escape to close"),
             Screen::Timeline => {
-                "n: new post | r: reply | rr: repost | l: like | R: refresh"
+                Cow::Borrowed("n: new post | r: reply | rr: repost | l: like | R: refresh")
             }
             Screen::Thread => {
-                "r: reply | rr: repost | l: like | u: profile"
+                let base = "r: reply | rr: repost | l: like | u: profile";
+                if show_quoted_hint {
+                    Cow::Owned(format!("{} | o: open quoted post", base))
+                } else {
+                    Cow::Borrowed(base)
+                }
             }
-            Screen::Profile => {""}
-            Screen::Preferences => {""},
-            Screen::Search => {"/ to begin searching Bluesky"},
-            Screen::Notifications => {""}
+            Screen::Profile => Cow::Borrowed(""),
+            Screen::Preferences => Cow::Borrowed(""),
+            Screen::Search => Cow::Borrowed("/ to begin searching Bluesky"),
+            Screen::Notifications => Cow::Borrowed(""),
         }
     };
 

@@ -17,6 +17,7 @@ pub enum Action {
     ScrollToTop,
     ScrollToBottom,
     OpenThread,
+    EnterQuotedPost,
     GoBack,
     SwitchTab(usize),
     ViewAuthorProfile,
