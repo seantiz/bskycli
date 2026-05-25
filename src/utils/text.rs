@@ -1,5 +1,4 @@
-use ratatui::prelude::*;
-use ratatui::text::Line;
+use ratatui::{style::Style, text::{Line, Span}};
 use unicode_width::UnicodeWidthStr;
 
 use crate::models::post::{Facet, FacetKind};
@@ -14,17 +13,18 @@ pub fn wrapped_line_count(text: &str, max_width: u16) -> u16 {
     text.split('\n')
         .map(|line| {
             let w = UnicodeWidthStr::width(line);
-            if w == 0 { 1 } else { ((w - 1) / max_width + 1) as u16 }
+            if w == 0 {
+                1
+            } else {
+                ((w - 1) / max_width + 1) as u16
+            }
         })
         .sum()
 }
 
 pub fn styled_text<'a>(text: &str, facets: &[Facet]) -> Vec<Line<'a>> {
     if facets.is_empty() {
-        return text
-            .lines()
-            .map(|l| Line::from(l.to_string()))
-            .collect();
+        return text.lines().map(|l| Line::from(l.to_string())).collect();
     }
 
     let mut spans: Vec<Span<'a>> = Vec::new();
@@ -38,32 +38,30 @@ pub fn styled_text<'a>(text: &str, facets: &[Facet]) -> Vec<Line<'a>> {
         let start = facet.start.min(bytes.len());
         let end = facet.end.min(bytes.len());
 
-        if start > pos {
-            if let Ok(s) = std::str::from_utf8(&bytes[pos..start]) {
-                spans.push(Span::raw(s.to_string()));
-            }
+        if start > pos
+            && let Ok(s) = std::str::from_utf8(&bytes[pos..start])
+        {
+            spans.push(Span::raw(s.to_string()));
         }
 
-        if start < end {
-            if let Ok(s) = std::str::from_utf8(&bytes[start..end]) {
-                let style = match &facet.kind {
-                    FacetKind::Mention(_) => Style::default().fg(Color::Cyan),
-                    FacetKind::Link(_) => Style::default()
-                        .fg(Color::Blue)
-                        .add_modifier(Modifier::UNDERLINED),
-                    FacetKind::Tag(_) => Style::default().fg(Color::Magenta),
-                };
-                spans.push(Span::styled(s.to_string(), style));
-            }
+        if start < end
+            && let Ok(s) = std::str::from_utf8(&bytes[start..end])
+        {
+            let style = match &facet.kind {
+                FacetKind::Mention(_) => Style::default().cyan(),
+                FacetKind::Link(_) => Style::default().blue().underlined(),
+                FacetKind::Tag(_) => Style::default().magenta(),
+            };
+            spans.push(Span::styled(s.to_string(), style));
         }
 
         pos = end;
     }
 
-    if pos < bytes.len() {
-        if let Ok(s) = std::str::from_utf8(&bytes[pos..]) {
-            spans.push(Span::raw(s.to_string()));
-        }
+    if pos < bytes.len()
+        && let Ok(s) = std::str::from_utf8(&bytes[pos..])
+    {
+        spans.push(Span::raw(s.to_string()));
     }
 
     // Split spans across newline boundaries into separate Lines
