@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::time::Duration;
 use std::sync::Arc;
 
 use anyhow::Result;
@@ -11,7 +12,7 @@ use tracing::error;
 use crate::action::Action;
 use crate::api::login_form;
 use crate::api::wrapper::{AgentWrapper, ReplyRef};
-use crate::event::{self, EventHandler};
+use crate::event::{self, EventHandler, DoubleTap};
 use crate::models::feed::FeedState;
 use crate::models::post::PostViewModel;
 use crate::models::preferences::PreferencesViewModel;
@@ -73,11 +74,16 @@ pub struct App {
     // Active data-loading task (aborted when a new load starts or on navigation)
     active_load: Option<JoinHandle<()>>,
 
+    // Better keymaps
+    key_tracker: DoubleTap,
+    pending_action: Option<Action>,
+
     // Modals
     login_form: LoginForm,
     composer: Composer,
     show_composer: bool,
     logout_confirmation: Option<Dialog>,
+    show_help: bool,
 
     image_library: ImageLibrary,
     image_protocols: HashMap<String, ImageState>,
@@ -114,10 +120,13 @@ impl App {
             current_notification: 0,
             error_message: None,
             active_load: None,
+            key_tracker: DoubleTap::new(),
+            pending_action: None,
             login_form: LoginForm::new(None),
             composer: Composer::new(),
             show_composer: false,
             logout_confirmation: None,
+            show_help: false,
             image_library: ImageLibrary::new(),
             image_protocols: std::collections::HashMap::new(),
             picker: None,
@@ -194,6 +203,22 @@ impl App {
                     return;
                 }
 
+                if self.show_help {
+                    self.show_help = false;
+                    return;
+                }
+
+                if self.screen == Screen::Preferences {
+                    match (key.modifiers, key.code) {
+                        (KeyModifiers::NONE, KeyCode::Char('q'))
+                        | (KeyModifiers::NONE, KeyCode::Esc) => {
+                            self.dispatch(Action::SwitchTab(0));
+                            return;
+                        }
+                        _ => {}
+                    }
+                }
+
                 if self.screen == Screen::Search {
                     if self.search_focused {
                         match key.code {
@@ -227,21 +252,34 @@ impl App {
                     }
                 }
 
+                if matches!(key.code, KeyCode::Char('r')) && key.modifiers == KeyModifiers::NONE {
+                    if self.key_tracker.press('r') {
+                        self.pending_action = None;
+                        self.dispatch(Action::ToggleRepost);
+                    } else {
+                        let reply_action = self.make_reply_action().unwrap_or(Action::OpenComposer {
+                            reply_to: None,
+                            reply_to_author: None,
+                        });
+                        self.pending_action = Some(reply_action);
+                        let tx = self.action_tx.clone();
+                        tokio::spawn(async move {
+                            tokio::time::sleep(Duration::from_millis(600)).await;
+                            let _ = tx.send(Action::ReplyTimeout);
+                        });
+                    }
+                    return;
+                }
+
+                // Flush pending action
+                if let Some(action) = self.pending_action.take() {
+                    self.dispatch(action);
+                }
+
                 // Global key handling
                 if let Some(action) =
                     event::key_to_action(key, self.show_composer, self.screen == Screen::Login)
                 {
-                    // Special handling for 'r' to populate reply_to
-                    let action = if matches!(key.code, KeyCode::Char('r'))
-                        && key.modifiers == KeyModifiers::NONE
-                    {
-                        self.make_reply_action().unwrap_or(Action::OpenComposer {
-                            reply_to: None,
-                            reply_to_author: None,
-                        })
-                    } else {
-                        action
-                    };
                     self.dispatch(action);
                 }
             }
@@ -435,6 +473,10 @@ impl App {
 
             Action::LogoutCancelled => {
                 self.logout_confirmation = None;
+            }
+
+            Action::ShowHelp => {
+                self.show_help = !self.show_help;
             }
 
             Action::RefreshTimeline => {
@@ -654,15 +696,15 @@ impl App {
                         self.dispatch(Action::RefreshTimeline);
                     }
                     1 => {
+                        self.screen = Screen::Search;
+                    }
+                    2 => {
                         if let Some(handle) = self.handle.clone() {
                             self.dispatch(Action::LoadProfile(handle));
                         }
                     }
-                    2 => {
-                        self.screen = Screen::Preferences;
-                    }
                     3 => {
-                        self.screen = Screen::Search;
+                        self.screen = Screen::Preferences;
                     }
                     4 => {
                         self.screen = Screen::Notifications;
@@ -1061,6 +1103,12 @@ impl App {
                 );
             }
 
+            Action::ReplyTimeout => {
+                if let Some(action) = self.pending_action.take() {
+                    self.dispatch(action);
+                }
+            }
+
             _ => {}
         }
     }
@@ -1101,30 +1149,30 @@ impl App {
     fn draw(&mut self, frame: &mut ratatui::Frame) {
         let area = frame.area();
 
-        let chunks = Layout::default()
+        let container = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
-                Constraint::Length(3),
+                Constraint::Length(4),
                 Constraint::Min(1),
                 Constraint::Length(1),
             ])
             .split(area);
 
         // Tab bar
-        crate::ui::tabs::draw_tabs(frame, chunks[0], self.active_tab);
+        crate::ui::tabs::draw_tabs(frame, container[0], self.active_tab);
 
         // Main content
         match self.screen {
             Screen::Login => {
-                self.login_form.draw(frame, chunks[1]);
+                self.login_form.draw(frame, container[1]);
             }
             Screen::Timeline => {
-                crate::ui::timeline::draw_timeline(frame, chunks[1], &self.timeline);
+                crate::ui::timeline::draw_timeline(frame, container[1], &self.timeline);
             }
             Screen::Thread => {
                 crate::ui::thread::draw_thread(
                     frame,
-                    chunks[1],
+                    container[1],
                     self.thread.as_ref(),
                     self.thread_cursor,
                     self.thread_scroll_offset,
@@ -1134,7 +1182,7 @@ impl App {
             Screen::Profile => {
                 crate::ui::profile::draw_profile(
                     frame,
-                    chunks[1],
+                    container[1],
                     self.profile.as_ref(),
                     &self.profile_feed,
                 );
@@ -1142,7 +1190,7 @@ impl App {
             Screen::Preferences => {
                 crate::ui::user_prefs::draw_settings(
                     frame,
-                    chunks[1],
+                    container[1],
                     &self.preferences,
                     self.preferences_selected_index,
                 );
@@ -1150,7 +1198,7 @@ impl App {
             Screen::Search => {
                 crate::ui::search::draw_search(
                     frame,
-                    chunks[1],
+                    container[1],
                     &self.search_feed,
                     &self.search_query,
                     self.search_focused,
@@ -1159,7 +1207,7 @@ impl App {
             Screen::Notifications => {
                 crate::ui::notifications::draw_notifications(
                     frame,
-                    chunks[1],
+                    container[1],
                     &self.notifications,
                     self.current_notification,
                     self.notifications_loading,
@@ -1170,7 +1218,7 @@ impl App {
         // Status bar
         crate::ui::statusbar::draw_statusbar(
             frame,
-            chunks[2],
+            container[2],
             &self.screen,
             self.show_composer,
             self.error_message.as_deref(),
@@ -1184,6 +1232,11 @@ impl App {
         // Confirm dialog overlay
         if let Some(ref dialog) = self.logout_confirmation {
             dialog.draw(frame, area);
+        }
+
+        // Help dialog overlay
+        if self.show_help {
+            crate::ui::help::draw_help(frame, area);
         }
     }
 }

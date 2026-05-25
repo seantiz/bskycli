@@ -1,4 +1,5 @@
 pub mod composer;
+pub mod help;
 pub mod logout;
 pub mod login;
 

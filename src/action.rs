@@ -105,9 +105,12 @@ pub enum Action {
     rows: u16,
 },
 
+    ShowHelp,
+
     OpenPreferences,
     SavePreferences(PreferencesViewModel),
     TogglePreferences,
+    ReplyTimeout,
 }
 
 
