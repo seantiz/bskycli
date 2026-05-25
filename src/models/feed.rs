@@ -7,6 +7,7 @@ pub struct FeedState {
     pub selected_index: usize,
     pub scroll_offset: usize,
     pub loading: bool,
+    pub search_returned: bool
 }
 
 impl FeedState {
@@ -17,6 +18,7 @@ impl FeedState {
             selected_index: 0,
             scroll_offset: 0,
             loading: false,
+            search_returned: false
         }
     }
 
@@ -59,6 +61,7 @@ impl FeedState {
         self.selected_index = 0;
         self.scroll_offset = 0;
         self.loading = false;
+        self.search_returned = true;
     }
 
     pub fn near_bottom(&self, _visible_height: usize) -> bool {

@@ -42,7 +42,7 @@ pub fn draw_search(frame: &mut Frame, area: Rect, feed: &FeedState, query: &str,
         return;
     }
 
-    if feed.posts.is_empty() && !query.is_empty() {
+    if feed.posts.is_empty() && feed.search_returned && !query.is_empty() {
         frame.render_widget(
             Paragraph::new("We couldn't find anything. Try again?")
                 .style(Style::default().dark_gray())
