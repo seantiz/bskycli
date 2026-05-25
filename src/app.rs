@@ -583,7 +583,7 @@ impl App {
                 }
                 Screen::Preferences => {
                     // NOTE: Off by one for ui padding
-                    self.preferences_selected_index = (self.preferences_selected_index + 1).min(11);
+                    self.preferences_selected_index = (self.preferences_selected_index + 1).min(12);
                 }
                 _ => {}
             },
@@ -1009,6 +1009,7 @@ impl App {
                         self.preferences.notify_starterpack_joins =
                             !self.preferences.notify_starterpack_joins
                     }
+                    12 => self.preferences.show_hints = !self.preferences.show_hints,
                     _ => {}
                 }
                 if let Err(e) = self.preferences.save() {
@@ -1298,6 +1299,7 @@ impl App {
             self.show_composer,
             self.error_message.as_deref(),
             show_more_hints,
+            self.preferences.show_hints,
         );
 
         // Composer overlay

@@ -11,11 +11,18 @@ pub fn draw_statusbar(
     in_composer: bool,
     error: Option<&str>,
     show_quoted_hint: bool,
+    show_hints: bool,
 ) {
     if let Some(err) = error {
         let error_bar =
             Paragraph::new(format!(" There was a problem: {}", err)).style(Style::default().red());
         frame.render_widget(error_bar, area);
+        return;
+    }
+
+    if !show_hints {
+        let bar = Paragraph::new(" ").style(Style::default().dark_gray());
+        frame.render_widget(bar, area);
         return;
     }
 

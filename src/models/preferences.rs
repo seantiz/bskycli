@@ -13,6 +13,7 @@ pub struct PreferencesViewModel {
     pub notify_replies: bool,
     pub notify_quotes: bool,
     pub notify_starterpack_joins: bool,
+    pub show_hints: bool,
     pub last_seen_at: Option<String>,
 }
 
@@ -38,6 +39,7 @@ impl PreferencesViewModel {
             notify_replies: true,
             notify_quotes: true,
             notify_starterpack_joins: true,
+            show_hints: true,
             last_seen_at: None,
         }
     }

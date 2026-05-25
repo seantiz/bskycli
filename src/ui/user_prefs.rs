@@ -6,9 +6,11 @@ use ratatui::layout::Rect;
 
 use crate::models::preferences::PreferencesViewModel;
 
+
+// NOTE: Navigation through this view is directly clamped by Screen::Preferences arm in app.rs
 pub fn draw_settings(frame: &mut Frame, area: Rect, preferences: &PreferencesViewModel, selected_index: usize) {
     let popup_width = 54;
-    let popup_height = 23;
+    let popup_height = 24;
 
     let horizontal = (area.width.saturating_sub(popup_width)) / 2;
     let vertical = (area.height.saturating_sub(popup_height)) / 2;
@@ -58,6 +60,25 @@ pub fn draw_settings(frame: &mut Frame, area: Rect, preferences: &PreferencesVie
         (11, "Notify me when someone uses my starter pack", preferences.notify_starterpack_joins),
     ];
     for (idx, label, checked) in &notify_items {
+        let checkbox = if *checked { "x" } else { " " };
+        let text = format!("  [{}] {}", checkbox, label);
+        let style = if *idx == selected_index {
+            Style::default().cyan()
+        } else {
+            Style::default()
+        };
+        lines.push(Line::from(Span::styled(text, style)));
+    }
+
+    lines.push(Line::from(""));
+    lines.push(Line::from(""));
+
+    lines.push(Line::from(Span::styled(" Other ", section_style)));
+
+    let interface_items: [(usize, &str, bool); 1] = [
+        (12, "Show action hints", preferences.show_hints),
+    ];
+    for (idx, label, checked) in &interface_items {
         let checkbox = if *checked { "x" } else { " " };
         let text = format!("  [{}] {}", checkbox, label);
         let style = if *idx == selected_index {
