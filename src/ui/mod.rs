@@ -27,5 +27,5 @@ use crate::action::Action;
 /// intercept keys, so they do not need to implement this trait.
 pub trait Component {
     fn handle_key_event(&mut self, key: KeyEvent) -> Option<Action>;
-    fn draw(&self, frame: &mut Frame, area: ratatui::prelude::Rect);
+    fn draw(&self, frame: &mut Frame, area: ratatui::layout::Rect);
 }

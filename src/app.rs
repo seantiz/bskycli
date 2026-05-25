@@ -4,7 +4,7 @@ use std::time::Duration;
 
 use anyhow::Result;
 use crossterm::event::{Event, KeyCode, KeyModifiers};
-use ratatui::prelude::*;
+use ratatui::layout::{Constraint, Direction, Layout};
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 use tracing::error;

@@ -7,7 +7,7 @@ use crossterm::{
     execute,
     terminal::{self, EnterAlternateScreen, LeaveAlternateScreen},
 };
-use ratatui::prelude::*;
+use ratatui::{Terminal, prelude::CrosstermBackend};
 use std::io::{self, stdout};
 
 pub type Tui = Terminal<CrosstermBackend<io::Stdout>>;

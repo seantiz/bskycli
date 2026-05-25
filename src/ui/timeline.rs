@@ -1,18 +1,16 @@
-use ratatui::prelude::*;
-use ratatui::widgets::{Block, Borders, Paragraph};
 use crate::models::feed::FeedState;
 use crate::ui::post_widget;
+use ratatui::Frame;
+use ratatui::layout::Rect;
+use ratatui::style::Style;
+use ratatui::widgets::{Block, Borders, Paragraph};
 
-pub fn draw_timeline(
-    frame: &mut Frame,
-    mut area: Rect,
-    feed: &FeedState,
-) {
+pub fn draw_timeline(frame: &mut Frame, mut area: Rect, feed: &FeedState) {
     if feed.loading && feed.posts.is_empty() {
         frame.render_widget(
             Paragraph::new("Loading...")
                 .style(Style::default().yellow())
-                .alignment(Alignment::Center)
+                .centered()
                 .block(Block::default().borders(Borders::NONE)),
             area,
         );
@@ -23,13 +21,15 @@ pub fn draw_timeline(
         frame.render_widget(
             Paragraph::new("Press R to refresh.")
                 .style(Style::default().dark_gray())
-                .alignment(Alignment::Center),
+                .centered(),
             area,
         );
         return;
     }
 
-    let heights: Vec<usize> = feed.posts.iter()
+    let heights: Vec<usize> = feed
+        .posts
+        .iter()
         .map(|p| post_widget::post_height(p, area.width, None) as usize)
         .collect();
 
@@ -39,11 +39,7 @@ pub fn draw_timeline(
     let top_of_hp: usize = heights[..hovered_post].iter().sum();
     let height_of_hp = heights[hovered_post];
 
-    let lookahead: usize = heights
-        .iter()
-        .skip(hovered_post + 1)
-        .take(2)
-        .sum();
+    let lookahead: usize = heights.iter().skip(hovered_post + 1).take(2).sum();
 
     let start_lookback_from = hovered_post.saturating_sub(2);
     let lookback: usize = heights[start_lookback_from..hovered_post].iter().sum();
@@ -78,8 +74,7 @@ pub fn draw_timeline(
     if feed.loading && area.y < area.bottom() {
         frame.render_widget(
             Paragraph::new("Loading more posts...")
-                .style(Style::default().yellow())
-                .alignment(Alignment::Center),
+                .style(Style::default().yellow()).centered(),
             Rect::new(area.x, area.y, area.width, 1),
         );
     }

@@ -1,6 +1,9 @@
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use ratatui::Frame;
 use ratatui::crossterm::event::{KeyCode as RKeyCode, KeyEvent as RKeyEvent, KeyModifiers as RKeyModifiers};
-use ratatui::prelude::*;
+use ratatui::layout::{Constraint, Direction, Layout, Rect};
+use ratatui::style::Style;
+use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Clear, Paragraph};
 use ratatui_textarea::TextArea;
 

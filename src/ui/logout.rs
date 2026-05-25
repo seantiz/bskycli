@@ -1,5 +1,6 @@
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
-use ratatui::prelude::*;
+use ratatui::Frame;
+use ratatui::layout::Rect;
 use ratatui::widgets::{Block, Borders, Clear, Padding, Paragraph, Wrap};
 
 use crate::action::Action;
@@ -26,7 +27,7 @@ impl Component for Dialog {
         }
     }
 
-    fn draw(&self, frame: &mut Frame, area: ratatui::prelude::Rect) {
+    fn draw(&self, frame: &mut Frame, area: Rect) {
         let popup_width = 40;
         let popup_height = 6;
 
@@ -45,7 +46,7 @@ impl Component for Dialog {
             .title(" Are you sure? ")
             .padding(Padding::new(1, 1, 1, 1));
         let content = Paragraph::new(self.message.as_str())
-            .alignment(Alignment::Center)
+            .centered()
             .wrap(Wrap { trim: true });
 
         frame.render_widget(Clear, rect);

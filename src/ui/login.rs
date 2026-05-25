@@ -1,5 +1,7 @@
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
-use ratatui::prelude::*;
+use ratatui::Frame;
+use ratatui::layout::{Constraint, Direction, Layout, Rect};
+use ratatui::style::Style;
 use ratatui::widgets::{Block, Borders, Clear, Paragraph, Wrap};
 
 use crate::action::Action;
@@ -98,12 +100,12 @@ impl Component for LoginForm {
         let block = Block::default()
             .title(" Bluesky - Login ")
             .borders(Borders::ALL)
-            .border_style(Style::default().fg(Color::Cyan));
+            .border_style(Style::default().cyan());
 
         let inner = block.inner(modal_area);
         frame.render_widget(block, modal_area);
 
-        let chunks = Layout::default()
+        let container = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
                 Constraint::Length(1),
@@ -118,81 +120,79 @@ impl Component for LoginForm {
             ])
             .split(inner);
 
-        let title_style = Style::default()
-            .fg(Color::White)
-            .add_modifier(Modifier::BOLD);
+        let title_style = Style::default().bold();
+
         frame.render_widget(
             Paragraph::new("Sign in with app password")
                 .style(title_style)
-                .alignment(Alignment::Center),
-            chunks[0],
+                .centered(),
+            container[0],
         );
 
         let handle_label_style = if self.focused_field == LoginField::Handle {
-            Style::default()
-                .fg(Color::Cyan)
-                .add_modifier(Modifier::BOLD)
+            Style::default().cyan().bold()
         } else {
-            Style::default().fg(Color::Gray)
+            Style::default().gray()
         };
         frame.render_widget(
             Paragraph::new("Handle:").style(handle_label_style),
-            chunks[2],
+            container[2],
         );
 
         let handle_style = if self.focused_field == LoginField::Handle {
-            Style::default().fg(Color::White)
+            Style::default()
         } else {
-            Style::default().fg(Color::DarkGray)
+            Style::default().dark_gray()
         };
         let handle_text = if self.focused_field == LoginField::Handle {
             format!("{}█", &self.handle)
         } else {
             self.handle.clone()
         };
-        frame.render_widget(Paragraph::new(handle_text).style(handle_style), chunks[3]);
+        frame.render_widget(
+            Paragraph::new(handle_text).style(handle_style),
+            container[3],
+        );
 
         let pw_label_style = if self.focused_field == LoginField::Password {
-            Style::default()
-                .fg(Color::Cyan)
-                .add_modifier(Modifier::BOLD)
+            Style::default().cyan().bold()
         } else {
-            Style::default().fg(Color::Gray)
+            Style::default().gray()
         };
         frame.render_widget(
             Paragraph::new("App Password:").style(pw_label_style),
-            chunks[5],
+            container[5],
         );
 
         let pw_style = if self.focused_field == LoginField::Password {
-            Style::default().fg(Color::White)
+            Style::default()
         } else {
-            Style::default().fg(Color::DarkGray)
+            Style::default().dark_gray()
         };
         let pw_display = if self.focused_field == LoginField::Password {
             format!("{}█", "•".repeat(self.password.len()))
         } else {
             "•".repeat(self.password.len())
         };
-        frame.render_widget(Paragraph::new(pw_display).style(pw_style), chunks[6]);
+        frame.render_widget(Paragraph::new(pw_display).style(pw_style), container[6]);
 
         if let Some(ref error) = self.error {
             frame.render_widget(
                 Paragraph::new(error.as_str())
-                    .style(Style::default().fg(Color::Red))
+                    .style(Style::default().red())
                     .wrap(Wrap { trim: true }),
-                chunks[8],
+                container[8],
             );
         } else if self.submitting {
             frame.render_widget(
-                Paragraph::new("Signing in...").style(Style::default().fg(Color::Yellow)),
-                chunks[8],
+                Paragraph::new("Signing in...").style(Style::default().yellow()),
+                container[8],
             );
         } else {
             frame.render_widget(
                 Paragraph::new("Tab: switch fields  Enter: submit  Esc: quit")
-                    .style(Style::default().fg(Color::DarkGray)),
-                chunks[8],
+                    .style(Style::default().dark_gray()),
+                container[8],
             );
         }
     }
