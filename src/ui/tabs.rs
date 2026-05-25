@@ -1,5 +1,5 @@
 use ratatui::layout::Rect;
-use ratatui::widgets::{Block, Tabs as RatatuiTabs};
+use ratatui::widgets::{Block, Padding, Tabs as RatatuiTabs};
 use ratatui::Frame;
 use ratatui::style::Style;
 
@@ -10,7 +10,8 @@ pub fn draw_tabs(frame: &mut Frame, area: Rect, active: usize) {
     let tabs = RatatuiTabs::new(titles)
         .block(
             Block::default()
-                .title_bottom(" Bluesky ")
+                .title_top(" Bluesky ")
+                .padding(Padding::new(0, 0, 1, 0)),
         )
         .select(active)
         .style(Style::default().dark_gray())
