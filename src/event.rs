@@ -1,4 +1,6 @@
 use crossterm::event::{Event, EventStream, KeyCode, KeyEvent, KeyModifiers};
+use std::time::{Duration, Instant};
+
 use futures::StreamExt;
 
 use crate::action::Action;
@@ -22,6 +24,36 @@ impl EventHandler {
                 None => return None,
             }
         }
+    }
+}
+
+pub struct DoubleTap {
+    last_key: Option<char>,
+    last_time: Option<Instant>,
+}
+
+impl DoubleTap {
+    pub fn new() -> Self {
+        Self {
+            last_key: None,
+            last_time: None,
+        }
+    }
+
+    pub fn press(&mut self, key: char) -> bool {
+        let now = Instant::now();
+        let double_tap_window = Duration::from_millis(600);
+
+        let is_double_tap = self.last_key == Some(key)
+            && self
+                .last_time
+                .map(|t| now.duration_since(t) <= double_tap_window)
+                .unwrap_or(false);
+
+        self.last_key = Some(key);
+        self.last_time = Some(now);
+
+        is_double_tap
     }
 }
 
@@ -55,7 +87,7 @@ pub fn key_to_action(key: KeyEvent, in_composer: bool, in_login: bool) -> Option
         }
         (KeyModifiers::CONTROL, KeyCode::Char('l')) => Some(Action::LogoutConfirm),
         (KeyModifiers::NONE, KeyCode::Char('l')) => Some(Action::ToggleLike),
-        (KeyModifiers::NONE, KeyCode::Char('t')) => Some(Action::ToggleRepost),
+
         (KeyModifiers::NONE, KeyCode::Char('u')) => Some(Action::ViewAuthorProfile),
         (KeyModifiers::SHIFT, KeyCode::Char('R')) => Some(Action::RefreshTimeline),
         (KeyModifiers::NONE, KeyCode::Char('g')) => Some(Action::ScrollToTop),
