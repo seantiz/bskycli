@@ -83,6 +83,7 @@ pub struct App {
     composer: Composer,
     show_composer: bool,
     logout_confirmation: Option<Dialog>,
+    show_help: bool,
 
     image_library: ImageLibrary,
     image_protocols: HashMap<String, ImageState>,
@@ -125,6 +126,7 @@ impl App {
             composer: Composer::new(),
             show_composer: false,
             logout_confirmation: None,
+            show_help: false,
             image_library: ImageLibrary::new(),
             image_protocols: std::collections::HashMap::new(),
             picker: None,
@@ -199,6 +201,22 @@ impl App {
                         self.dispatch(action);
                     }
                     return;
+                }
+
+                if self.show_help {
+                    self.show_help = false;
+                    return;
+                }
+
+                if self.screen == Screen::Preferences {
+                    match (key.modifiers, key.code) {
+                        (KeyModifiers::NONE, KeyCode::Char('q'))
+                        | (KeyModifiers::NONE, KeyCode::Esc) => {
+                            self.dispatch(Action::SwitchTab(0));
+                            return;
+                        }
+                        _ => {}
+                    }
                 }
 
                 if self.screen == Screen::Search {
@@ -457,6 +475,10 @@ impl App {
                 self.logout_confirmation = None;
             }
 
+            Action::ShowHelp => {
+                self.show_help = !self.show_help;
+            }
+
             Action::RefreshTimeline => {
                 self.timeline.loading = true;
                 let client = self.client.clone();
@@ -674,15 +696,15 @@ impl App {
                         self.dispatch(Action::RefreshTimeline);
                     }
                     1 => {
+                        self.screen = Screen::Search;
+                    }
+                    2 => {
                         if let Some(handle) = self.handle.clone() {
                             self.dispatch(Action::LoadProfile(handle));
                         }
                     }
-                    2 => {
-                        self.screen = Screen::Preferences;
-                    }
                     3 => {
-                        self.screen = Screen::Search;
+                        self.screen = Screen::Preferences;
                     }
                     4 => {
                         self.screen = Screen::Notifications;
@@ -1210,6 +1232,11 @@ impl App {
         // Confirm dialog overlay
         if let Some(ref dialog) = self.logout_confirmation {
             dialog.draw(frame, area);
+        }
+
+        // Help dialog overlay
+        if self.show_help {
+            crate::ui::help::draw_help(frame, area);
         }
     }
 }
