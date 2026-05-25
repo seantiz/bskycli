@@ -226,6 +226,19 @@ impl App {
                     }
                 }
 
+                if !self.search_focused
+                    && matches!(key.code, KeyCode::Char('/'))
+                    && key.modifiers == KeyModifiers::NONE
+                {
+                    if self.screen != Screen::Search {
+                        self.active_tab = 1;
+                        self.screen = Screen::Search;
+                        self.search_query.clear();
+                    }
+                    self.search_focused = true;
+                    return;
+                }
+
                 if self.screen == Screen::Search {
                     if self.search_focused {
                         match key.code {
@@ -251,11 +264,6 @@ impl App {
                             }
                             _ => {}
                         }
-                    } else if matches!(key.code, KeyCode::Char('/'))
-                        && key.modifiers == KeyModifiers::NONE
-                    {
-                        self.search_focused = true;
-                        return;
                     }
                 }
 
