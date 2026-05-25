@@ -20,11 +20,11 @@ All the essentials you'd expect:
 
 ### What's Missing (Long-Term)
 
-- Posts with embedded links can only launch to your browser when they're prefixed with `http`. Lacking support for `at`, `gemini` and shortened web links.
+- Posts with embedded links can only launch to your browser when they're prefixed with `http(s)`. Lacking support for `at`, `gemini` and shortened web links.
 
 - There's no video support. This isn't a priority for me, you may disagree. It'd likely take an external call to `mpv` and I'm unsure Bluesky welcome hotlinking videos from their endpoints. Until there's a clear confirmation from their side, I'm leaving this alone.
 
-- Great idea mentioned on the Bluesky codebase here as an anti-doomscrolling feature: [bluesky-social/social-app#10601](https://github.com/bluesky-social/social-app/issues/10601) ... Right now the app sort of works this way (you have to press `R` to hard re-render the timeline but could do with revisiting. 
+- Great idea mentioned on the Bluesky codebase here as an anti-doomscrolling feature: [bluesky-social/social-app#10601](https://github.com/bluesky-social/social-app/issues/10601) ... Right now the app sort of works this way (you have to press `R` to hard re-render the timeline) but this could do with revisiting. 
 
 ## Installation
 Git clone and build this from source. Make sure you have `cargo` installed, then run the cargo build or install command at project root.
