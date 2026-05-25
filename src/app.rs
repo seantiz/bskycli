@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::time::Duration;
 use std::sync::Arc;
 
 use anyhow::Result;
@@ -11,7 +12,7 @@ use tracing::error;
 use crate::action::Action;
 use crate::api::login_form;
 use crate::api::wrapper::{AgentWrapper, ReplyRef};
-use crate::event::{self, EventHandler};
+use crate::event::{self, EventHandler, DoubleTap};
 use crate::models::feed::FeedState;
 use crate::models::post::PostViewModel;
 use crate::models::preferences::PreferencesViewModel;
@@ -73,6 +74,10 @@ pub struct App {
     // Active data-loading task (aborted when a new load starts or on navigation)
     active_load: Option<JoinHandle<()>>,
 
+    // Better keymaps
+    key_tracker: DoubleTap,
+    pending_action: Option<Action>,
+
     // Modals
     login_form: LoginForm,
     composer: Composer,
@@ -114,6 +119,8 @@ impl App {
             current_notification: 0,
             error_message: None,
             active_load: None,
+            key_tracker: DoubleTap::new(),
+            pending_action: None,
             login_form: LoginForm::new(None),
             composer: Composer::new(),
             show_composer: false,
@@ -227,21 +234,34 @@ impl App {
                     }
                 }
 
+                if matches!(key.code, KeyCode::Char('r')) && key.modifiers == KeyModifiers::NONE {
+                    if self.key_tracker.press('r') {
+                        self.pending_action = None;
+                        self.dispatch(Action::ToggleRepost);
+                    } else {
+                        let reply_action = self.make_reply_action().unwrap_or(Action::OpenComposer {
+                            reply_to: None,
+                            reply_to_author: None,
+                        });
+                        self.pending_action = Some(reply_action);
+                        let tx = self.action_tx.clone();
+                        tokio::spawn(async move {
+                            tokio::time::sleep(Duration::from_millis(600)).await;
+                            let _ = tx.send(Action::ReplyTimeout);
+                        });
+                    }
+                    return;
+                }
+
+                // Flush pending action
+                if let Some(action) = self.pending_action.take() {
+                    self.dispatch(action);
+                }
+
                 // Global key handling
                 if let Some(action) =
                     event::key_to_action(key, self.show_composer, self.screen == Screen::Login)
                 {
-                    // Special handling for 'r' to populate reply_to
-                    let action = if matches!(key.code, KeyCode::Char('r'))
-                        && key.modifiers == KeyModifiers::NONE
-                    {
-                        self.make_reply_action().unwrap_or(Action::OpenComposer {
-                            reply_to: None,
-                            reply_to_author: None,
-                        })
-                    } else {
-                        action
-                    };
                     self.dispatch(action);
                 }
             }
@@ -1059,6 +1079,12 @@ impl App {
                         rows,
                     },
                 );
+            }
+
+            Action::ReplyTimeout => {
+                if let Some(action) = self.pending_action.take() {
+                    self.dispatch(action);
+                }
             }
 
             _ => {}
