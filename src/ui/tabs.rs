@@ -1,17 +1,16 @@
 use ratatui::layout::Rect;
-use ratatui::widgets::{Block, Borders, Tabs as RatatuiTabs};
+use ratatui::widgets::{Block, Tabs as RatatuiTabs};
 use ratatui::Frame;
 use ratatui::style::Style;
 
 pub fn draw_tabs(frame: &mut Frame, area: Rect, active: usize) {
-    // TODO: This now adds a hard requirement that the user have nerd font installed. 
+    // NOTE: This now adds nerd font as a requirement on user end for icons
     
-    let titles = vec!["[1] Timeline", "[2] Profile", "[3] Preferences", "[4] Search", "\u{f0e0}"];
+    let titles = vec!["Timeline", "Search", "Profile", "\u{f013}", "\u{f0e0}"];
     let tabs = RatatuiTabs::new(titles)
         .block(
             Block::default()
-                .borders(Borders::BOTTOM)
-                .title(" Bluesky "),
+                .title_bottom(" Bluesky ")
         )
         .select(active)
         .style(Style::default().dark_gray())
