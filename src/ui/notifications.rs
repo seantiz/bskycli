@@ -62,7 +62,10 @@ pub fn draw_notifications(
 
     let viewport = area.height as usize;
 
-    let roof: usize = apartments[..scrolled_past].iter().map(|h| *h as usize).sum();
+    let roof: usize = apartments[..scrolled_past]
+        .iter()
+        .map(|h| *h as usize)
+        .sum();
     let tower_block = apartments[scrolled_past] as usize;
 
     let start_lookback = scrolled_past.saturating_sub(3);
@@ -133,22 +136,22 @@ pub fn draw_notifications(
                 .unwrap_or_default();
 
             let author_line = ratatui::text::Line::from(vec![
-                ratatui::text::Span::styled(
-                    &notif.display_name,
-                    Style::default().white().bold(),
-                ),
+                ratatui::text::Span::styled(&notif.display_name, Style::default().white().bold()),
                 ratatui::text::Span::styled(
                     format!("  @{}", notif.handle),
                     Style::default().dark_gray(),
                 ),
                 ratatui::text::Span::styled(format!("  {}", time), Style::default().dark_gray()),
             ]);
-            frame.render_widget(Paragraph::new(author_line), Rect::new(inner_x, ly, inner_w, 1));
+            frame.render_widget(
+                Paragraph::new(author_line),
+                Rect::new(inner_x, ly, inner_w, 1),
+            );
             ly += 1;
         }
 
         if ly < inner_bottom {
-            let reason_text = format!("{}", render(&notif.reason));
+            let reason_text = render(&notif.reason);
             frame.render_widget(
                 Paragraph::new(reason_text).style(text_style),
                 Rect::new(inner_x, ly, inner_w, 1),
@@ -156,14 +159,14 @@ pub fn draw_notifications(
             ly += 1;
         }
 
-        if let Some(ref record) = notif.record {
-            if ly < inner_bottom {
-                let snippet: String = record.chars().take(60).collect();
-                frame.render_widget(
-                    Paragraph::new(snippet).style(Style::default().dark_gray()),
-                    Rect::new(inner_x, ly, inner_w, 1),
-                );
-            }
+        if let Some(ref record) = notif.record
+            && ly < inner_bottom
+        {
+            let snippet: String = record.chars().take(60).collect();
+            frame.render_widget(
+                Paragraph::new(snippet).style(Style::default().dark_gray()),
+                Rect::new(inner_x, ly, inner_w, 1),
+            );
         }
 
         y += h as u16;
