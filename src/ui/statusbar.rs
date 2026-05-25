@@ -1,7 +1,6 @@
 use std::borrow::Cow;
 
-use ratatui::prelude::*;
-use ratatui::widgets::Paragraph;
+use ratatui::{Frame, layout::Rect, style::Style, widgets::Paragraph};
 
 use crate::app::Screen;
 
@@ -14,8 +13,8 @@ pub fn draw_statusbar(
     show_quoted_hint: bool,
 ) {
     if let Some(err) = error {
-        let error_bar = Paragraph::new(format!(" There was a problem: {}", err))
-            .style(Style::default().red());
+        let error_bar =
+            Paragraph::new(format!(" There was a problem: {}", err)).style(Style::default().red());
         frame.render_widget(error_bar, area);
         return;
     }
@@ -24,7 +23,6 @@ pub fn draw_statusbar(
         Cow::Borrowed("Enter: post | Esc: cancel")
     } else {
         match screen {
-            Screen::Login => Cow::Borrowed("Tab to cycle and Escape to close"),
             Screen::Timeline => {
                 Cow::Borrowed("n: new post | r: reply | rr: repost | l: like | R: refresh")
             }
@@ -36,14 +34,10 @@ pub fn draw_statusbar(
                     Cow::Borrowed(base)
                 }
             }
-            Screen::Profile => Cow::Borrowed(""),
-            Screen::Preferences => Cow::Borrowed(""),
-            Screen::Search => Cow::Borrowed("/ to begin searching Bluesky"),
-            Screen::Notifications => Cow::Borrowed(""),
+            _ => Cow::Borrowed(""),
         }
     };
 
-    let bar = Paragraph::new(format!(" {}", hints))
-        .style(Style::default().dark_gray());
+    let bar = Paragraph::new(format!(" {}", hints)).style(Style::default().dark_gray());
     frame.render_widget(bar, area);
 }
