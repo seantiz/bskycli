@@ -1,5 +1,5 @@
 use ratatui::prelude::*;
-use ratatui::widgets::{Block, Borders, Paragraph, Wrap};
+use ratatui::widgets::{Block, BorderType, Borders, Paragraph, Wrap};
 
 use crate::app::ImageState;
 use crate::models::post::{EmbedKind, PostViewModel, QuotedPost};
@@ -57,14 +57,15 @@ pub fn draw_post(
     image_state: Option<&mut ImageState>,
 ) {
     let border_style = if highlighted {
-        Style::default().cyan()
+        Style::default().cyan().on_white()
     } else {
-        Style::default().dark_gray()
+        Style::default().gray()
     };
 
     let block = Block::default()
         .borders(Borders::LEFT)
-        .border_style(border_style);
+        .border_style(border_style)
+        .border_type(BorderType::Thick);
 
     let inner = block.inner(area);
     frame.render_widget(block, area);
@@ -116,7 +117,7 @@ pub fn draw_post(
     }
     let time_str = relative_time(&post.created_at);
     let author_line = Line::from(vec![
-        Span::styled(&post.display_name, Style::default().white().bold()),
+        Span::styled(&post.display_name, Style::default().bold()),
         Span::styled(
             format!("  @{}", post.handle),
             Style::default().dark_gray(),
