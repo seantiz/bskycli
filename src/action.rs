@@ -108,6 +108,7 @@ pub enum Action {
     OpenPreferences,
     SavePreferences(PreferencesViewModel),
     TogglePreferences,
+    ReplyTimeout,
 }
 
 
