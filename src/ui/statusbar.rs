@@ -23,10 +23,10 @@ pub fn draw_statusbar(
         match screen {
             Screen::Login => "Tab to cycle and Escape to close",
             Screen::Timeline => {
-                "n: new post | r: reply | l: like | t: repost | R: refresh"
+                "n: new post | r: reply | rr: repost | l: like | R: refresh"
             }
             Screen::Thread => {
-                "r: reply | l: like | t: repost | u: profile"
+                "r: reply | rr: repost | l: like | u: profile"
             }
             Screen::Profile => {""}
             Screen::Preferences => {""},
