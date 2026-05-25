@@ -43,10 +43,17 @@ pub enum Screen {
     Notifications,
 }
 
+struct ScreenStack {
+    screen: Screen,
+    thread: Option<ThreadViewModel>,
+    thread_cursor: usize,
+    thread_scroll_offset: usize,
+}
+
 pub struct App {
     should_quit: bool,
     screen: Screen,
-    screen_stack: Vec<Screen>,
+    screen_stack: Vec<ScreenStack>,
     active_tab: usize,
     client: Arc<AgentWrapper>,
     action_tx: mpsc::UnboundedSender<Action>,
@@ -655,7 +662,12 @@ impl App {
                     let client = self.client.clone();
                     let tx = self.action_tx.clone();
                     if self.screen != Screen::Thread {
-                        self.screen_stack.push(self.screen.clone());
+                        self.screen_stack.push(ScreenStack {
+                            screen: self.screen.clone(),
+                            thread: self.thread.take(),
+                            thread_cursor: self.thread_cursor,
+                            thread_scroll_offset: self.thread_scroll_offset,
+                        });
                     }
                     self.screen = Screen::Thread;
                     self.spawn_load(async move {
@@ -680,11 +692,55 @@ impl App {
                 self.load_selected_post_images();
             }
 
+            Action::EnterQuotedPost => {
+                if self.screen != Screen::Thread {
+                    return;
+                }
+
+                let quoted_uri = self.move_around_thread().and_then(|p| {
+                    p.meta.as_ref().and_then(|meta| match &meta.kind {
+                        crate::models::post::EmbedKind::Record(qp)
+                        | crate::models::post::EmbedKind::RecordWithMedia(qp) => {
+                            Some(qp.uri.clone())
+                        }
+                        _ => None,
+                    })
+                });
+
+                if let Some(uri) = quoted_uri {
+                    let client = self.client.clone();
+                    let tx = self.action_tx.clone();
+                    self.screen_stack.push(ScreenStack {
+                        screen: self.screen.clone(),
+                        thread: self.thread.take(),
+                        thread_cursor: self.thread_cursor,
+                        thread_scroll_offset: self.thread_scroll_offset,
+                    });
+                    self.screen = Screen::Thread;
+                    self.spawn_load(async move {
+                        match client.get_thread(&uri).await {
+                            Ok(thread) => {
+                                let _ = tx.send(Action::ThreadLoaded(Box::new(thread)));
+                            }
+                            Err(e) => {
+                                let _ = tx.send(Action::Error(e.to_string()));
+                            }
+                        }
+                    });
+                }
+            }
+
             Action::GoBack => {
                 self.cancel_load();
-                if let Some(prev) = self.screen_stack.pop() {
-                    self.screen = prev;
-                    self.thread = None;
+                if let Some(stacked) = self.screen_stack.pop() {
+                    self.screen = stacked.screen;
+                    if self.screen == Screen::Thread {
+                        self.thread = stacked.thread;
+                        self.thread_cursor = stacked.thread_cursor;
+                        self.thread_scroll_offset = stacked.thread_scroll_offset;
+                    } else {
+                        self.thread = None;
+                    }
                 }
             }
 
@@ -881,7 +937,12 @@ impl App {
                     _ => None,
                 };
                 if let Some(did) = did {
-                    self.screen_stack.push(self.screen.clone());
+                    self.screen_stack.push(ScreenStack {
+                        screen: self.screen.clone(),
+                        thread: self.thread.take(),
+                        thread_cursor: self.thread_cursor,
+                        thread_scroll_offset: self.thread_scroll_offset,
+                    });
                     self.dispatch(Action::LoadProfile(did));
                 }
             }
@@ -1215,6 +1276,20 @@ impl App {
             }
         }
 
+        let show_more_hints = if self.screen == Screen::Thread {
+            self.move_around_thread()
+                .and_then(|p| p.meta.as_ref())
+                .is_some_and(|m| {
+                    matches!(
+                        &m.kind,
+                        crate::models::post::EmbedKind::Record(_)
+                            | crate::models::post::EmbedKind::RecordWithMedia(_)
+                    )
+                })
+        } else {
+            false
+        };
+
         // Status bar
         crate::ui::statusbar::draw_statusbar(
             frame,
@@ -1222,6 +1297,7 @@ impl App {
             &self.screen,
             self.show_composer,
             self.error_message.as_deref(),
+            show_more_hints,
         );
 
         // Composer overlay
