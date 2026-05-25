@@ -55,15 +55,15 @@ impl Component for LoginForm {
                     LoginField::Password => LoginField::Handle,
                 };
             }
-            (KeyModifiers::NONE, KeyCode::Enter) => {
-                if !self.handle.is_empty() && !self.password.is_empty() {
-                    self.submitting = true;
-                    self.error = None;
-                    return Some(Action::SubmitLogin {
-                        handle: self.handle.clone(),
-                        password: self.password.clone(),
-                    });
-                }
+            (KeyModifiers::NONE, KeyCode::Enter)
+                if !self.handle.is_empty() && !self.password.is_empty() =>
+            {
+                self.submitting = true;
+                self.error = None;
+                return Some(Action::SubmitLogin {
+                    handle: self.handle.clone(),
+                    password: self.password.clone(),
+                });
             }
             (KeyModifiers::NONE, KeyCode::Backspace) => match self.focused_field {
                 LoginField::Handle => {
@@ -82,7 +82,6 @@ impl Component for LoginForm {
         }
         None
     }
-
 
     fn draw(&self, frame: &mut Frame, area: Rect) {
         let modal_width = 50.min(area.width.saturating_sub(4));
@@ -119,14 +118,20 @@ impl Component for LoginForm {
             ])
             .split(inner);
 
-        let title_style = Style::default().fg(Color::White).add_modifier(Modifier::BOLD);
+        let title_style = Style::default()
+            .fg(Color::White)
+            .add_modifier(Modifier::BOLD);
         frame.render_widget(
-            Paragraph::new("Sign in with app password").style(title_style).alignment(Alignment::Center),
+            Paragraph::new("Sign in with app password")
+                .style(title_style)
+                .alignment(Alignment::Center),
             chunks[0],
         );
 
         let handle_label_style = if self.focused_field == LoginField::Handle {
-            Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD)
         } else {
             Style::default().fg(Color::Gray)
         };
@@ -145,13 +150,12 @@ impl Component for LoginForm {
         } else {
             self.handle.clone()
         };
-        frame.render_widget(
-            Paragraph::new(handle_text).style(handle_style),
-            chunks[3],
-        );
+        frame.render_widget(Paragraph::new(handle_text).style(handle_style), chunks[3]);
 
         let pw_label_style = if self.focused_field == LoginField::Password {
-            Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD)
         } else {
             Style::default().fg(Color::Gray)
         };
@@ -170,10 +174,7 @@ impl Component for LoginForm {
         } else {
             "•".repeat(self.password.len())
         };
-        frame.render_widget(
-            Paragraph::new(pw_display).style(pw_style),
-            chunks[6],
-        );
+        frame.render_widget(Paragraph::new(pw_display).style(pw_style), chunks[6]);
 
         if let Some(ref error) = self.error {
             frame.render_widget(
@@ -184,8 +185,7 @@ impl Component for LoginForm {
             );
         } else if self.submitting {
             frame.render_widget(
-                Paragraph::new("Signing in...")
-                    .style(Style::default().fg(Color::Yellow)),
+                Paragraph::new("Signing in...").style(Style::default().fg(Color::Yellow)),
                 chunks[8],
             );
         } else {

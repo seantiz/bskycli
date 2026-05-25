@@ -1,6 +1,6 @@
 use std::collections::HashMap;
-use std::time::Duration;
 use std::sync::Arc;
+use std::time::Duration;
 
 use anyhow::Result;
 use crossterm::event::{Event, KeyCode, KeyModifiers};
@@ -12,7 +12,7 @@ use tracing::error;
 use crate::action::Action;
 use crate::api::login_form;
 use crate::api::wrapper::{AgentWrapper, ReplyRef};
-use crate::event::{self, EventHandler, DoubleTap};
+use crate::event::{self, DoubleTap, EventHandler};
 use crate::models::feed::FeedState;
 use crate::models::post::PostViewModel;
 use crate::models::preferences::PreferencesViewModel;
@@ -264,10 +264,11 @@ impl App {
                         self.pending_action = None;
                         self.dispatch(Action::ToggleRepost);
                     } else {
-                        let reply_action = self.make_reply_action().unwrap_or(Action::OpenComposer {
-                            reply_to: None,
-                            reply_to_author: None,
-                        });
+                        let reply_action =
+                            self.make_reply_action().unwrap_or(Action::OpenComposer {
+                                reply_to: None,
+                                reply_to_author: None,
+                            });
                         self.pending_action = Some(reply_action);
                         let tx = self.action_tx.clone();
                         tokio::spawn(async move {
@@ -391,19 +392,18 @@ impl App {
                 Ok(path) => {
                     if let Ok(data) = std::fs::read(&path)
                         && let Ok(dyn_img) = image::load_from_memory(&data)
+                        && let Some(picker) = picker
                     {
-                        if let Some(picker) = picker {
-                            let font_size = picker.font_size();
-                            let cols = (dyn_img.width() / font_size.0 as u32).max(1) as u16;
-                            let rows = (dyn_img.height() / font_size.1 as u32).max(1) as u16;
-                            let protocol = picker.new_resize_protocol(dyn_img);
-                            let _ = tx.send(Action::ImageLoaded {
-                                post_uri,
-                                protocol,
-                                cols,
-                                rows,
-                            });
-                        }
+                        let font_size = picker.font_size();
+                        let cols = (dyn_img.width() / font_size.0 as u32).max(1) as u16;
+                        let rows = (dyn_img.height() / font_size.1 as u32).max(1) as u16;
+                        let protocol = picker.new_resize_protocol(dyn_img);
+                        let _ = tx.send(Action::ImageLoaded {
+                            post_uri,
+                            protocol,
+                            cols,
+                            rows,
+                        });
                     }
                 }
                 Err(e) => {
@@ -602,10 +602,8 @@ impl App {
                     self.current_notification = self.current_notification.saturating_sub(1);
                 }
                 Screen::Thread => {
-                    if self.thread_cursor > 0 {
-                        self.thread_cursor -= 1;
-                        self.load_selected_post_images();
-                    }
+                    self.thread_cursor = self.thread_cursor.saturating_sub(1);
+                    self.load_selected_post_images();
                 }
                 Screen::Preferences => {
                     // NOTE: Off by one for ui padding

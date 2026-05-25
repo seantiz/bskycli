@@ -19,14 +19,17 @@ pub struct PreferencesViewModel {
 
 impl PreferencesViewModel {
     pub fn load() -> Self {
-        let config_path = Self::config_path();
-        if config_path.exists() {
-            if let Ok(content) = std::fs::read_to_string(&config_path) {
-                if let Ok(prefs) = toml::from_str(&content) {
-                    return prefs;
-                }
-            }
+        let config_path = dirs::config_dir()
+            .expect("Couldn't find local config folder")
+            .join("bskycli")
+            .join("preferences.toml");
+
+        if let Ok(content) = std::fs::read_to_string(&config_path)
+            && let Ok(prefs) = toml::from_str(&content)
+        {
+            return prefs;
         }
+
         PreferencesViewModel {
             hide_replies: false,
             hide_replies_by_unfollowed: false,
@@ -45,31 +48,48 @@ impl PreferencesViewModel {
     }
 
     pub fn save(&self) -> std::io::Result<()> {
-        let config_path = Self::config_path();
+        let config_path = dirs::config_dir()
+            .expect("Couldn't find local config folder")
+            .join("bskycli")
+            .join("preferences.toml");
+
         if let Some(parent) = config_path.parent() {
             std::fs::create_dir_all(parent)?;
         }
-        let content = toml::to_string_pretty(self).map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
+
+        let content = toml::to_string_pretty(self)
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
         std::fs::write(config_path, content)
     }
 
     pub fn enabled_notifications(&self) -> Option<Vec<String>> {
         let mut reasons = Vec::new();
-        if self.notify_likes { reasons.push("like".to_string()); }
-        if self.notify_reposts { reasons.push("repost".to_string()); }
-        if self.notify_follows { reasons.push("follow".to_string()); }
-        if self.notify_mentions { reasons.push("mention".to_string()); }
-        if self.notify_replies { reasons.push("reply".to_string()); }
-        if self.notify_quotes { reasons.push("quote".to_string()); }
-        if self.notify_starterpack_joins { reasons.push("starterpack-joined".to_string()); }
+        if self.notify_likes {
+            reasons.push("like".to_string());
+        }
+        if self.notify_reposts {
+            reasons.push("repost".to_string());
+        }
+        if self.notify_follows {
+            reasons.push("follow".to_string());
+        }
+        if self.notify_mentions {
+            reasons.push("mention".to_string());
+        }
+        if self.notify_replies {
+            reasons.push("reply".to_string());
+        }
+        if self.notify_quotes {
+            reasons.push("quote".to_string());
+        }
+        if self.notify_starterpack_joins {
+            reasons.push("starterpack-joined".to_string());
+        }
 
-        if reasons.len() == 7 { None } else { Some(reasons) }
-    }
-
-    fn config_path() -> std::path::PathBuf {
-        dirs::config_dir()
-            .expect("Couldn't find config directory")
-            .join("bskycli")
-            .join("preferences.toml")
+        if reasons.len() == 7 {
+            None
+        } else {
+            Some(reasons)
+        }
     }
 }
