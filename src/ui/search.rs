@@ -24,7 +24,7 @@ pub fn draw_search(frame: &mut Frame, area: Rect, feed: &FeedState, query: &str,
 
     if query.is_empty() && feed.posts.is_empty() {
         frame.render_widget(
-            Paragraph::new("Press Enter to search")
+            Paragraph::new("Hit / to begin then Enter")
                 .style(Style::default().dark_gray())
                 .centered(),
             results_list,
