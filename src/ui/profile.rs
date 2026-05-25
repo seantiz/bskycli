@@ -52,7 +52,7 @@ fn draw_profile_header(frame: &mut Frame, area: Rect, profile: &ProfileViewModel
 
     // Display name
     frame.render_widget(
-        Paragraph::new(profile.display_name.as_str()).style(Style::default().white().bold()),
+        Paragraph::new(profile.display_name.as_str()).style(Style::default().cyan().bold()),
         header_div[0],
     );
 
@@ -76,17 +76,17 @@ fn draw_profile_header(frame: &mut Frame, area: Rect, profile: &ProfileViewModel
     let stats = Line::from(vec![
         Span::styled(
             format!("{}", profile.followers_count),
-            Style::default().white().bold(),
+            Style::default().cyan().bold(),
         ),
         Span::styled(" followers  ", Style::default().dark_gray()),
         Span::styled(
             format!("{}", profile.follows_count),
-            Style::default().white().bold(),
+            Style::default().cyan().bold(),
         ),
         Span::styled(" following  ", Style::default().dark_gray()),
         Span::styled(
             format!("{}", profile.posts_count),
-            Style::default().white().bold(),
+            Style::default().cyan().bold(),
         ),
         Span::styled(" posts", Style::default().dark_gray()),
     ]);
