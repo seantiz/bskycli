@@ -610,13 +610,16 @@ impl App {
                         .notifications
                         .get(self.current_notification)
                         .and_then(|n| n.subject.clone()),
+                    Screen::Thread => self.move_around_thread().map(|p| p.uri.clone()),
                     _ => None,
                 };
 
                 if let Some(uri) = uri {
                     let client = self.client.clone();
                     let tx = self.action_tx.clone();
-                    self.screen_stack.push(self.screen.clone());
+                    if self.screen != Screen::Thread {
+                        self.screen_stack.push(self.screen.clone());
+                    }
                     self.screen = Screen::Thread;
                     self.spawn_load(async move {
                         match client.get_thread(&uri).await {
