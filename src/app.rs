@@ -95,6 +95,7 @@ pub struct App {
     image_library: ImageLibrary,
     image_protocols: HashMap<String, ImageState>,
     picker: Option<Picker>,
+    logo_state: Option<ImageState>,
 }
 
 impl App {
@@ -137,6 +138,7 @@ impl App {
             image_library: ImageLibrary::new(),
             image_protocols: std::collections::HashMap::new(),
             picker: None,
+            logo_state: None,
         }
     }
 
@@ -160,6 +162,10 @@ impl App {
 
         if let Ok(mut picker) = Picker::from_query_stdio() {
             picker.set_protocol_type(ratatui_image::picker::ProtocolType::Kitty);
+            if let Ok(dyn_img) = image::load_from_memory(include_bytes!("../assets/bluesky-logo.png")) {
+                let protocol = picker.new_resize_protocol(dyn_img);
+                self.logo_state = Some(ImageState { protocol, cols: 4, rows: 1 });
+            }
             self.picker = Some(picker);
         }
 
@@ -239,8 +245,7 @@ impl App {
                     return;
                 }
 
-                if self.screen == Screen::Search {
-                    if self.search_focused {
+                if self.screen == Screen::Search && self.search_focused {
                         match key.code {
                             KeyCode::Char(pressed) if key.modifiers == KeyModifiers::NONE => {
                                 self.search_query.push(pressed);
@@ -264,7 +269,6 @@ impl App {
                             }
                             _ => {}
                         }
-                    }
                 }
 
                 if matches!(key.code, KeyCode::Char('r')) && key.modifiers == KeyModifiers::NONE {
@@ -1227,7 +1231,7 @@ impl App {
             .split(area);
 
         // Tab bar
-        crate::ui::tabs::draw_tabs(frame, container[0], self.active_tab);
+        crate::ui::tabs::draw_tabs(frame, container[0], self.active_tab, &mut self.logo_state);
 
         // Main content
         match self.screen {
