@@ -1,4 +1,7 @@
-use ratatui::prelude::*;
+use ratatui::Frame;
+use ratatui::layout::Rect;
+use ratatui::style::Style;
+use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, BorderType, Borders, Paragraph, Wrap};
 
 use crate::app::ImageState;
@@ -118,10 +121,7 @@ pub fn draw_post(
     let time_str = relative_time(&post.created_at);
     let author_line = Line::from(vec![
         Span::styled(&post.display_name, Style::default().bold()),
-        Span::styled(
-            format!("  @{}", post.handle),
-            Style::default().dark_gray(),
-        ),
+        Span::styled(format!("  @{}", post.handle), Style::default().dark_gray()),
         Span::styled(format!("  {}", time_str), Style::default().dark_gray()),
     ]);
     frame.render_widget(Paragraph::new(author_line), Rect::new(x, y, w, 1));
@@ -140,56 +140,56 @@ pub fn draw_post(
     let wrap_lines = wrapped_line_count(&post.text, w);
     y += wrap_lines.min(remaining);
 
-    if let Some(ref embed) = post.meta {
-        if y < bottom {
-            match &embed.kind {
-                EmbedKind::Images(n) => {
-                    if let Some(state) = image_state {
-                        let h = (bottom - y).min(state.rows);
-                        let img_area = Rect::new(x, y, state.cols.min(w), h);
-                        frame.render_stateful_widget(
-                            ratatui_image::StatefulImage::default(),
-                            img_area,
-                            &mut state.protocol,
-                        );
-                        y += h;
-                    } else {
-                        draw_embed_images(frame, x, y, w, n.len());
-                        y += 1;
-                    }
+    if let Some(ref embed) = post.meta
+        && y < bottom
+    {
+        match &embed.kind {
+            EmbedKind::Images(n) => {
+                if let Some(state) = image_state {
+                    let h = (bottom - y).min(state.rows);
+                    let img_area = Rect::new(x, y, state.cols.min(w), h);
+                    frame.render_stateful_widget(
+                        ratatui_image::StatefulImage::default(),
+                        img_area,
+                        &mut state.protocol,
+                    );
+                    y += h;
+                } else {
+                    draw_embed_images(frame, x, y, w, n.len());
+                    y += 1;
                 }
-                EmbedKind::Record(quoted) => {
-                    y = draw_quoted_card(frame, x, y, w, bottom, quoted);
-                }
-                EmbedKind::RecordWithMedia(quoted) => {
-                    y = draw_quoted_card(frame, x, y, w, bottom, quoted);
-                    if y < bottom {
-                        frame.render_widget(
-                            Paragraph::new("📎 [media]").style(Style::default().dark_gray()),
-                            Rect::new(x, y, w, 1),
-                        );
-                        y += 1;
-                    }
-                }
-                _ => {
-                    let embed_text = match (&embed.title, &embed.description) {
-                        (Some(t), _) => format!("📎 {}", t),
-                        (_, Some(d)) => format!("📎 {}", d),
-                        _ => format!(
-                            "📎 [{}]",
-                            match embed.kind {
-                                EmbedKind::ExternalLink => "link",
-                                EmbedKind::Video => "video",
-                                _ => unreachable!(),
-                            }
-                        ),
-                    };
+            }
+            EmbedKind::Record(quoted) => {
+                y = draw_quoted_card(frame, x, y, w, bottom, quoted);
+            }
+            EmbedKind::RecordWithMedia(quoted) => {
+                y = draw_quoted_card(frame, x, y, w, bottom, quoted);
+                if y < bottom {
                     frame.render_widget(
-                        Paragraph::new(embed_text).style(Style::default().dark_gray()),
+                        Paragraph::new("📎 [media]").style(Style::default().dark_gray()),
                         Rect::new(x, y, w, 1),
                     );
                     y += 1;
                 }
+            }
+            _ => {
+                let embed_text = match (&embed.title, &embed.description) {
+                    (Some(t), _) => format!("📎 {}", t),
+                    (_, Some(d)) => format!("📎 {}", d),
+                    _ => format!(
+                        "📎 [{}]",
+                        match embed.kind {
+                            EmbedKind::ExternalLink => "link",
+                            EmbedKind::Video => "video",
+                            _ => unreachable!(),
+                        }
+                    ),
+                };
+                frame.render_widget(
+                    Paragraph::new(embed_text).style(Style::default().dark_gray()),
+                    Rect::new(x, y, w, 1),
+                );
+                y += 1;
             }
         }
     }
@@ -211,7 +211,7 @@ pub fn draw_post(
             Span::styled(if post.is_liked { "♥ " } else { "♡ " }, like_style),
             Span::styled(format!("{}", post.likes), like_style),
             Span::raw("  "),
-            Span::styled(if post.is_reposted { "⟳ " } else { "⟳ " }, repost_style),
+            Span::styled(" ⟳ ", repost_style),
             Span::styled(format!("{}", post.reposts), repost_style),
             Span::raw("  "),
             Span::styled(
@@ -274,25 +274,29 @@ fn draw_quoted_card(
         cy += text_height;
     }
 
-    if let Some(ref embed) = quoted.meta {
-        if cy < bottom {
-            let text = match &embed.kind {
-                EmbedKind::ExternalLink => embed
-                    .title
-                    .as_deref()
-                    .map(|t| format!("📎 {}", t))
-                    .or_else(|| embed.description.as_deref().map(|d| format!("📎 {}", d)))
-                    .unwrap_or_else(|| "📎 [link]".to_string()),
-                EmbedKind::Images(imgs) => {
-                    format!("🖼 {} image{}", imgs.len(), if imgs.len() != 1 { "s" } else { "" })
-                }
-                EmbedKind::Video => "📎 [video]".to_string(),
-                EmbedKind::Record(_) => "📎 [quote]".to_string(),
-                EmbedKind::RecordWithMedia(_) => "📎 [quote+media]".to_string(),
-            };
-            frame.render_widget(Paragraph::new(text).style(dim), Rect::new(x, cy, w, 1));
-            cy += 1;
-        }
+    if let Some(ref embed) = quoted.meta
+        && cy < bottom
+    {
+        let text = match &embed.kind {
+            EmbedKind::ExternalLink => embed
+                .title
+                .as_deref()
+                .map(|t| format!("📎 {}", t))
+                .or_else(|| embed.description.as_deref().map(|d| format!("📎 {}", d)))
+                .unwrap_or_else(|| "📎 [link]".to_string()),
+            EmbedKind::Images(imgs) => {
+                format!(
+                    "🖼 {} image{}",
+                    imgs.len(),
+                    if imgs.len() != 1 { "s" } else { "" }
+                )
+            }
+            EmbedKind::Video => "📎 [video]".to_string(),
+            EmbedKind::Record(_) => "📎 [quote]".to_string(),
+            EmbedKind::RecordWithMedia(_) => "📎 [quote+media]".to_string(),
+        };
+        frame.render_widget(Paragraph::new(text).style(dim), Rect::new(x, cy, w, 1));
+        cy += 1;
     }
 
     if cy < bottom {
