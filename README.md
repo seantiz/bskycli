@@ -46,7 +46,7 @@ You need nerd fonts installed on your system for the app tabline to fully render
 ### Original Credit
 Credit to Cameron Banga for the original `skyscraper-cli` that this is forked from originally.
 
-The Bluesky logo used in this app was sourced from [FreePngLogo](href="https://freepnglogo.com).
+The Bluesky logo used in this app was sourced from [FreePngLogo]("https://freepnglogo.com).
 
 ### License
 MIT Licensed.
