@@ -8,19 +8,32 @@ use ratatui::widgets::Paragraph;
 pub fn draw_search(frame: &mut Frame, area: Rect, feed: &FeedState, query: &str, focused: bool) {
     let container = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([Constraint::Length(1), Constraint::Min(1)])
+        .constraints([
+            Constraint::Length(1),
+            Constraint::Length(1),
+            Constraint::Length(1),
+            Constraint::Min(1),
+        ])
         .split(area);
 
-    let search_bar = Paragraph::new(format!("Search: {}", query)).style(Style::default().cyan());
-    frame.render_widget(search_bar, container[0]);
+    let search_row = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([Constraint::Length(4), Constraint::Fill(1), Constraint::Length(4)])
+        .split(container[1]);
+
+    let search_bar = Paragraph::new(format!("{}", query))
+        .style(Style::default().cyan().bold().on_white())
+        .centered();
+    frame.render_widget(search_bar, search_row[1]);
     if focused {
-        // NOTE: This may be a guess, but search is around 8 characters in the head
-        let cursor_x = container[0].x + 8 + query.len() as u16;
-        let cursor_y = container[0].y;
-        frame.set_cursor_position(Position::new(cursor_x, cursor_y));
+        let text_width = query.len() as u16;
+        let inner = search_row[1];
+        let cx = inner.x + (inner.width.saturating_sub(text_width)) / 2 + query.len() as u16;
+        let cy = inner.y;
+        frame.set_cursor_position(Position::new(cx, cy));
     }
 
-    let mut results_list = container[1];
+    let mut results_list = container[3];
 
     if query.is_empty() && feed.posts.is_empty() {
         frame.render_widget(
