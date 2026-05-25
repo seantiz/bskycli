@@ -22,6 +22,7 @@ use crate::ui::composer::Composer;
 use crate::ui::login::LoginForm;
 use crate::ui::{Component, Dialog};
 use crate::utils::meta::ImageLibrary;
+use ratatui_image::picker::Picker;
 use ratatui_image::protocol::StatefulProtocol;
 
 pub struct ImageState {
@@ -55,8 +56,7 @@ pub struct App {
     timeline: FeedState,
     thread: Option<ThreadViewModel>,
     thread_cursor: usize,
-    thread_origin: usize,
-    thread_padding: usize,
+    thread_scroll_offset: usize,
     profile: Option<ProfileViewModel>,
     profile_feed: FeedState,
     preferences: PreferencesViewModel,
@@ -81,6 +81,7 @@ pub struct App {
 
     image_library: ImageLibrary,
     image_protocols: HashMap<String, ImageState>,
+    picker: Option<Picker>,
 }
 
 impl App {
@@ -99,8 +100,7 @@ impl App {
             timeline: FeedState::new(),
             thread: None,
             thread_cursor: 0,
-            thread_origin: 0,
-            thread_padding: 3,
+            thread_scroll_offset: 0,
             profile: None,
             profile_feed: FeedState::new(),
             preferences: PreferencesViewModel::load(),
@@ -120,6 +120,7 @@ impl App {
             logout_confirmation: None,
             image_library: ImageLibrary::new(),
             image_protocols: std::collections::HashMap::new(),
+            picker: None,
         }
     }
 
@@ -139,6 +140,11 @@ impl App {
             self.handle = Some(did.to_string());
             self.screen = Screen::Timeline;
             self.dispatch(Action::RefreshTimeline);
+        }
+
+        if let Ok(mut picker) = Picker::from_query_stdio() {
+            picker.set_protocol_type(ratatui_image::picker::ProtocolType::Kitty);
+            self.picker = Some(picker);
         }
 
         let mut events = EventHandler::new();
@@ -333,6 +339,7 @@ impl App {
         let post_uri = post.uri.clone();
         let library = self.image_library.clone();
         let tx = self.action_tx.clone();
+        let picker = self.picker.clone();
 
         self.spawn_load(async move {
             match library.retrieve_or_download(&url).await {
@@ -340,24 +347,18 @@ impl App {
                     if let Ok(data) = std::fs::read(&path)
                         && let Ok(dyn_img) = image::load_from_memory(&data)
                     {
-                        let mut picker = ratatui_image::picker::Picker::from_query_stdio();
-                        picker
-                            .as_mut()
-                            .expect("REASON")
-                            .set_protocol_type(ratatui_image::picker::ProtocolType::Kitty);
-                        let font_size = picker.as_mut().expect("REASON").font_size();
-                        let cols = (dyn_img.width() / font_size.0 as u32).max(1) as u16;
-                        let rows = (dyn_img.height() / font_size.1 as u32).max(1) as u16;
-                        let protocol = picker
-                            .as_mut()
-                            .expect("REASON")
-                            .new_resize_protocol(dyn_img);
-                        let _ = tx.send(Action::ImageLoaded {
-                            post_uri,
-                            protocol,
-                            cols,
-                            rows,
-                        });
+                        if let Some(picker) = picker {
+                            let font_size = picker.font_size();
+                            let cols = (dyn_img.width() / font_size.0 as u32).max(1) as u16;
+                            let rows = (dyn_img.height() / font_size.1 as u32).max(1) as u16;
+                            let protocol = picker.new_resize_protocol(dyn_img);
+                            let _ = tx.send(Action::ImageLoaded {
+                                post_uri,
+                                protocol,
+                                cols,
+                                rows,
+                            });
+                        }
                     }
                 }
                 Err(e) => {
@@ -509,9 +510,6 @@ impl App {
                         let total = thread.parents.len() + 1 + thread.replies.len();
                         if total > 0 && self.thread_cursor + 1 < total {
                             self.thread_cursor += 1;
-                            if self.thread_cursor >= self.thread_origin + self.thread_padding {
-                                self.thread_origin += 1;
-                            }
                             self.load_selected_post_images();
                         }
                     }
@@ -557,9 +555,6 @@ impl App {
                 Screen::Thread => {
                     if self.thread_cursor > 0 {
                         self.thread_cursor -= 1;
-                        if self.thread_cursor < self.thread_origin + self.thread_padding {
-                            self.thread_origin = self.thread_origin.saturating_sub(1);
-                        }
                         self.load_selected_post_images();
                     }
                 }
@@ -577,7 +572,7 @@ impl App {
                 Screen::Search => self.search_feed.select_first(),
                 Screen::Thread => {
                     self.thread_cursor = 0;
-                    self.thread_origin = 0;
+                    self.thread_scroll_offset = 0;
                 }
                 Screen::Notifications => self.current_notification = 0,
                 _ => {}
@@ -638,7 +633,7 @@ impl App {
                 self.thread = *thread;
                 if let Some(ref t) = self.thread {
                     self.thread_cursor = t.parents.len();
-                    self.thread_origin = 0;
+                    self.thread_scroll_offset = 0;
                 }
                 self.load_selected_post_images();
             }
@@ -1132,7 +1127,7 @@ impl App {
                     chunks[1],
                     self.thread.as_ref(),
                     self.thread_cursor,
-                    self.thread_origin,
+                    self.thread_scroll_offset,
                     &mut self.image_protocols,
                 );
             }
