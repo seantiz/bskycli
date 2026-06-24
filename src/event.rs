@@ -5,6 +5,18 @@ use futures::StreamExt;
 
 use crate::action::Action;
 
+impl Default for EventHandler {
+    fn default() -> Self {
+        EventHandler::new()
+    }
+}
+
+impl Default for DoubleTap {
+    fn default() -> Self {
+        DoubleTap::new()
+    }
+}
+
 pub struct EventHandler {
     stream: EventStream,
 }
