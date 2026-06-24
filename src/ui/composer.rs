@@ -19,6 +19,12 @@ pub struct Composer {
     reply_to_author: Option<String>,
 }
 
+impl Default for Composer {
+    fn default() -> Self {
+        Composer::new()
+    }
+}
+
 impl Composer {
     pub fn new() -> Self {
         let mut textarea = TextArea::default();

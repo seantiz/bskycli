@@ -6,6 +6,12 @@ pub struct ImageLibrary {
     cache_dir: PathBuf,
 }
 
+impl Default for ImageLibrary {
+    fn default() -> Self {
+        ImageLibrary::new()
+    }
+}
+
 impl ImageLibrary {
     pub fn new() -> Self {
         let cache_dir = Self::get_library();

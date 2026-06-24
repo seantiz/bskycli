@@ -21,7 +21,7 @@ pub fn draw_search(frame: &mut Frame, area: Rect, feed: &FeedState, query: &str,
         .constraints([Constraint::Length(4), Constraint::Fill(1), Constraint::Length(4)])
         .split(container[1]);
 
-    let search_bar = Paragraph::new(format!("{}", query))
+    let search_bar = Paragraph::new(query.to_string())
         .style(Style::default().cyan().bold().on_white())
         .centered();
     frame.render_widget(search_bar, search_row[1]);
