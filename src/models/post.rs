@@ -29,6 +29,7 @@ pub struct PostViewModel {
     pub replied_by: Option<String>,
     pub reposted_by: Option<String>,
     pub images: Vec<ImageMeta>,
+    pub record_json: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Clone)]
@@ -125,6 +126,8 @@ impl PostViewModel {
 
         let embed_meta = post.embed.as_ref().and_then(get_embed_meta);
 
+        let record_json = serde_json::to_value(&post.record).ok();
+
         Some(PostViewModel {
             uri: post.uri.clone(),
             cid: post.cid.as_ref().to_string(),
@@ -147,6 +150,7 @@ impl PostViewModel {
             replied_by,
             reposted_by,
             images: Vec::new(),
+            record_json,
         })
     }
 
@@ -263,7 +267,7 @@ fn qp(record_refs: &Union<ViewRecordRefs>) -> QuotedPost {
         Union::Refs(ViewRecordRefs::ViewRecord(vr)) => {
             let author = &vr.author;
             let handle = author.handle.to_string();
-            let display_name = author.display_name.clone().unwrap();
+            let display_name = author.display_name.clone().unwrap_or_else(||handle.clone());
 
             let (text, facets) = match serde_json::to_value(&vr.value) {
                 Ok(val) => {
@@ -382,10 +386,12 @@ fn embed_io(embed: &Union<ViewRecordEmbedsItem>) -> Option<EmbedMeta> {
     }
 }
 
+// WARN: Unfortunately forced to use a matcher here before the Union::Refs type has an Unknown path in it
+// Why? We don't know
 fn replying_handle(parent: &Union<ReplyRefParentRefs>) -> Option<String> {
     match parent {
-        Union::Refs(ReplyRefParentRefs::PostView(pv)) => {
-            Some(pv.author.display_name.clone().unwrap())
+        Union::Refs(ReplyRefParentRefs::PostView(timeline)) => {
+            Some(timeline.author.display_name.clone().unwrap_or_else(|| timeline.author.handle.to_string()))
         }
         _ => None,
     }
@@ -394,7 +400,7 @@ fn replying_handle(parent: &Union<ReplyRefParentRefs>) -> Option<String> {
 fn get_reposted_reason(reason: &Union<FeedViewPostReasonRefs>) -> Option<String> {
     match reason {
         Union::Refs(FeedViewPostReasonRefs::ReasonRepost(rr)) => {
-            Some(rr.by.display_name.clone().unwrap())
+            Some(rr.by.display_name.clone().unwrap_or_else(|| rr.by.handle.to_string()))
         }
         _ => None,
     }
